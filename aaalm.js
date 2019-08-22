@@ -15,25 +15,59 @@ function setXY(d, subnet_base) {
 }
 
 function buildMap(values) {
-  const devices = [
 
   const subnets = [
-    {prefix: "10.0.0.0" nm: 24,
+    { prefix: "10.0.0.0", nm: 24,
+      Class: "A"
       devices: [
-            {name: "10.0.0.1"},
-            {name: "10.0.0.2"},
-            {name: "10.0.0.3"},
-            {name: "10.0.0.4"},
-            {name: "10.0.0.5"},
-            {name: "10.0.0.52"},
-            {name: "10.0.0.59"},
-            {name: "10.0.0.123"},
-            {name: "10.0.0.153"},
-            {name: "10.0.0.175"},
-        ];
-    {prefix: "10.0.0.0" nm: 24},
-    {prefix: "10.0.0.0" nm: 24},
+        {name: "10.0.0.1", type: "gateway"},
+        {name: "10.0.0.2", type: "router"},
+        {name: "10.0.0.3"},
+        {name: "10.0.0.4"},
+        {name: "10.0.0.5"},
+        {name: "10.0.0.52"},
+        {name: "10.0.0.59"},
+        {name: "10.0.0.123"},
+        {name: "10.0.0.153"},
+        {name: "10.0.0.175"},
+        {name: "10.0.0.255"}
+      ]
+    },
+    {prefix: "10.0.4.0", nm: 24,
+      Class: "A"
+      devices: [
+        {name: "10.0.4.19", type: "router"},
+        {name: "10.0.4.20"},
+        {name: "10.0.4.21"},
+        {name: "10.0.4.22"},
+        {name: "10.0.4.100"},
+        {name: "10.0.4.101"}
+       ]
+    },
+    {prefix: "4.0.2.0", nm: 24,
+      Class: "B"
+      devices: [
+        {name: "4.0.2.1", type: "gateway"},
+        {name: "4.0.2.19"},
+        {name: "4.0.2.20"},
+        {name: "4.0.2.100"},
+        {name: "4.0.2.101"}
+       ]
+    }
   ];
+
+  let devices = subnets[0].devices;
+
+
+  /*
+
+  let line = d3.line()
+        .x(d=>d[0])
+        .y(d=>d[1])
+        .interpolate("linear")
+  */
+  //console.log(line([[0,1],[1,4],[3,5],[4,2]]))
+  //debugger;
 
   // Compute x and y position for each device inside of its subnet
   let subnet_base = ip2int("10.0.0.0");
@@ -76,7 +110,14 @@ function buildMap(values) {
     .style("font", "10px monospace")
     .style("margin", "5px");
 
+
+  const connection = svg.append("g")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", 3)
+
+
   const subnet_points = svg.append("g")
+    .attr("transform", "translate(200, 50)")
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", 3)
   .selectAll("g")
@@ -91,6 +132,7 @@ function buildMap(values) {
     .attr("r", grid.r/2.0);
 
   const node = svg.append("g")
+    .attr("transform", "translate(200, 50)")
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", 3)
   .selectAll("g")
