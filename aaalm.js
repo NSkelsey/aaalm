@@ -143,8 +143,10 @@ function buildMap(values) {
 
   let line = d3.line()
     .curve(d3.curveStep)
-    .x(d=>d.x*grid.x_offset)
-    .y(d=>d.y*grid.y_offset);
+    //.x(d=>d.x*grid.x_offset)
+    //.y(d=>d.y*grid.y_offset);
+    .x(d=>d[0]*grid.x_offset)
+    .y(d=>d[1]*grid.y_offset);
 
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.prefix, subnet.devices, j);
@@ -187,15 +189,30 @@ function buildMap(values) {
     .attr("height", d => d.empty_grid.length % 8 * grid.y_offset )
     .attr("fill", "url(#diagonalHatch)");
 
+  let path = []
+  for (let i = 0; i < 400; i++) {
+    let s = hindex2xy(i, 16)
+    console.log(i, s);
+    path.push(s);
+  }
+
   const connections = subnet_group.append("g")
     .attr("stroke", "#999")
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", "2")
+    .attr("class", "hil-path")
+    .attr("fill", "none")
+  .append("path")
+    .attr("d", line(path));
+
+  console.log(line(path));
+
+  /*
   .append("path")
     .attr("fill", "none")
     .attr("d", d => {
         return d.path;
-    })
+    })*/
 
   const subnet_points = subnet_group.append("g")
     .attr("class", "grid-points")

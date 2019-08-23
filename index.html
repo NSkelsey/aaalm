@@ -7,16 +7,19 @@ page {
     margin: 0 auto;
     margin-bottom: 0.5cm;
     box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+    padding: 20px;
 }
+
 page[size="A4"]
     width: 21cm;
     height: 29.7cm;
 }
+
 page[size="A4"][layout="portrait"] {
     width: 29.7cm;
     height: 21cm;
-    padding: 10px;
 }
+
 @media print {
   body, page {
       margin: 0;
@@ -24,10 +27,6 @@ page[size="A4"][layout="portrait"] {
   }
 }
 
-
-rect {
-  color: black;
-}
 g.device {
 }
 
@@ -46,7 +45,7 @@ div.inline {
 
 #legend > div.box {
   border-right: 2px solid orange;
-  padding-right: 1.5%;
+  padding: 15px;
 }
 
 </style>
@@ -76,5 +75,6 @@ div.inline {
     </div>
     </page>
 </body>
+<script src="hilbert.js"></script>
 <script src="aaalm.js" ></script>
 </html>
