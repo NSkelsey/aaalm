@@ -1,37 +1,80 @@
 <html>
-  <style>
-    .blah {
-        height: 1000px;
-    }
+    <style>
 
-    rect {
-      color: black;
-    }
-    g.device {
-    }
+page {
+    background: white;
+    display: block;
+    margin: 0 auto;
+    margin-bottom: 0.5cm;
+    box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+}
+page[size="A4"]
+    width: 21cm;
+    height: 29.7cm;
+}
+page[size="A4"][layout="portrait"] {
+    width: 29.7cm;
+    height: 21cm;
+    padding: 10px;
+}
+@media print {
+  body, page {
+      margin: 0;
+      box-shadow: 0;
+  }
+}
 
-  </style>
-  <script src="../d3.v5.js"></script>
-  </head>
-  <body>
-      <h2>LAN Map<small><i></i></small></h2>
-      <div id="viz"></div>
-<!--
-  <div class="blah">
-<svg version="1.1"  x="0px" y="0px"
-  width="1000" height="1000"
- style="enable-background:new 0 0 1000 1000;" xml:space="preserve">
 
-    <g id="device" transform="scale(0.04)">
-        <rect x="0" width="1000" height="250"/>
-        <rect x="0" y="375" width="1000" height="250"/>
-        <rect x="0" y="750" width="1000" height="250"/>
-        <rect x="562.5" y="187.5" transform="matrix(-1.836970e-16 1 -1 -1.836970e-16 1187.5 -562.5)" width="625" height="250"/>
-        <rect x="-187.5" y="187.5" transform="matrix(-1.836970e-16 1 -1 -1.836970e-16 437.5 187.5)" width="625" height="250"/>
-    </g>
-</svg>
-  </div>
--->
-  </body>
-  <script src="aaalm.js" ></script>
+rect {
+  color: black;
+}
+g.device {
+}
+
+h2 {
+  border-bottom: 2px solid orange;
+}
+
+#legend {
+  border-top: 2px solid orange;
+  border-bottom: 2px solid orange;
+}
+
+div.inline {
+  display: inline-block;
+}
+
+#legend > div.box {
+  border-right: 2px solid orange;
+  padding-right: 1.5%;
+}
+
+</style>
+<script src="../d3.v5.js"></script>
+</head>
+<body>
+    <page size="A4" layout="portrait">
+    <h2>EurasiaSpar IPv4 Map <small><i>on 20 August, 2019 from mora.local</i></small></h2>
+    <div id="viz">
+        <svg id="map">
+            <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4" transform="scale(4)">
+            <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2"
+                  style="stroke:green; stroke-opacity:0.3; stroke-width:1; stroke-dasharray:4 1" />
+            </pattern>
+        </svg>
+    </div>
+    <div id="legend">
+        <div class="inline box">
+            <h4>Legend:</h4>
+        </div>
+        <div class="inline">
+            <span>Class A</span>
+            <span>Class B</span>
+            <span>Class C</span>
+            </ul>
+        </div>
+    </div>
+    </page>
+</body>
+<script src="aaalm.js" ></script>
 </html>

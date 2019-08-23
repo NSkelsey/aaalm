@@ -10,7 +10,7 @@ For the best results consider running traceroute when monitoring.
 
 ## Installation
 
-todo
+
 
 ## Really Quick Usage
 
@@ -20,8 +20,12 @@ Then __if you are not worried about the sensitivity of your information__ browse
 
 ## Usage
 
-todo
-
 ```zsh
 > python -m http.server -b localhost
 ```
+
+
+## TODO
+
+- [ ] installation and usage docs
+- [ ] Zoom and animate details inside of networks
