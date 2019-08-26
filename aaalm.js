@@ -1,3 +1,15 @@
+function setupHTML(metadata) {
+  let t = d3.select("#title > h2");
+  t.text(`${metadata.name} LAN map`);
+
+  let i = d3.select("#title > i");
+  i.text(`on ${metadata.date} from ${metadata.iface}`);
+
+  let c = d3.select("#creationDate");
+  let now = new Date().toLocaleString();
+  c.text(`on ${now}`);
+}
+
 function ip2int(ip) {
     let s = ip.split('.').reduce(function(ipInt, octet) { return (ipInt<<8) + parseInt(octet, 10)}, 0) >>> 0;
     return s;
@@ -22,10 +34,10 @@ function orientToRotation(j) {
 
 function processDevices(prefix, devices, j) {
   // Compute x and y position for each device inside of its subnet
-  let subnet_base = ip2int(prefix);
+  let subnet_base = ip2int(prefix+".0");
   let last_ip = ip2int(devices[0].name);
 
-  let ctr = 2;
+  let ctr = 3;
   for(let i = 0; i < devices.length; i++) {
     let d = devices[i];
     d.orientation = j;
@@ -66,7 +78,7 @@ function setXY(d, subnet_base) {
 function buildMap(values) {
 
   const subnets = [
-    { prefix: "10.0.0.0", nm: 24,
+    { prefix: "10.0.0", nm: 24,
       class: "A",
       devices: [
         {name: "10.0.0.1", type: "gateway"},
@@ -82,7 +94,7 @@ function buildMap(values) {
         {name: "10.0.0.255"}
       ]
     },
-    {prefix: "10.0.4.0", nm: 24,
+    {prefix: "10.0.4", nm: 24,
       class: "A",
       devices: [
         {name: "10.0.4.19", type: "router"},
@@ -93,7 +105,7 @@ function buildMap(values) {
         {name: "10.0.4.101"}
        ]
     },
-    {prefix: "4.0.2.0", nm: 24,
+    {prefix: "4.0.2", nm: 24,
       class: "B",
       devices: [
         {name: "4.0.2.1", type: "gateway"},
@@ -105,7 +117,7 @@ function buildMap(values) {
         {name: "4.0.2.255"}
        ]
     },
-    {prefix: "2.0.2.0", nm: 24,
+    {prefix: "2.0.2", nm: 24,
       class: "B",
       devices: [
         {name: "2.0.2.1", type: "gateway"},
@@ -127,18 +139,55 @@ function buildMap(values) {
         {name: "2.0.2.241"},
         {name: "2.0.2.242"}
        ]
+    },
+    {
+      prefix: "2.0.3", nm: 24,
+      devices: [
+        {name: "2.0.3.1"},
+        {name: "2.0.3.3"},
+        {name: "2.0.3.4"},
+        {name: "2.0.3.5"}
+      ]
     }
   ];
 
+  let metadata = {
+    name: "Eurospar",
+    date: "20/08/2019",
+    iface: "mora.local",
+    tracedroutes: [
+        {
+            originator: "10.0.0.1",
+            route: ["10.0.2.0", "10.0.4.19"]
+
+        },
+        {
+            originator: "2.0.2.4",
+            route: ["2.0.2.1", "10.0.4.3", "", "10.0.0.59"]
+        },
+        {
+            originator: "2.0.2.4",
+            route: ["2.0.2.1", "10.0.4.3", "", "10.0.0.175"]
+        },
+        {
+            originator: "10.0.4.100",
+            route: ["10.0.4.19", "", "4.0.2.1", "", "4.0.2.100"]
+        }
+    ]
+  };
+
+  setupHTML(metadata);
+
   let devices = subnets[0].devices;
 
-  const grid = {width: 1000,
-                height: 900,
+  const grid = {width: 1112,
+                height: 635,
+                // Per node spacing
                 x_offset: 50,
-                y_offset: 50,
-                y_pad: 100,
-                x_pad: 180,
-                r: 8,
+                y_offset: 40,
+                y_pad: 40,
+                x_pad: 0,
+                r: 3,
                 group_pad: 300};
 
   let line = d3.line()
@@ -154,7 +203,8 @@ function buildMap(values) {
     // j is a value 1 through 4 (left, up, right, down)
     subnet.orientation = j;
 
-    let colors = ["green", "blue", "yellow", "purple"];
+
+    const colors = d3.schemePastel1;
 
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
@@ -163,36 +213,88 @@ function buildMap(values) {
       o.y = Math.floor(i / 8);
       subnet.empty_grid.push(o);
     }
+    subnet.color = colors[j];
+
+    subnet.w = (8+1) * grid.x_offset;
+    subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
 
     subnet.path = line(makePath(subnet.devices));
   });
 
+  let packer = new Packer(grid.width, grid.height);
+  subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
+  packer.fit(subnets);
+
   const svg = d3.select("#map")
     .style("width", grid.width)
     .style("height", grid.height)
-    .style("font", "10px monospace")
-    .style("margin", "5px");
+  .append("g")
+    .attr("class", "margin")
+    .attr("transform", `translate(${grid.x_pad}, ${grid.y_pad})`)
+
 
   const subnet_group = svg.selectAll("g.subnet-group")
     .data(subnets)
   .enter().append("g")
     .attr("class", "subnet-group")
-    .attr("transform", function(d,i) {
-        console.log("yeah", d, i);
-        let t = `translate(${grid.width/2}, ${grid.height/2})`;
-        let r = orientToRotation(d.orientation);
-        return t + " "+ r;
-    })
+    .attr("transform", d => {
+      let r = '';
+      let t = `translate(${d.fit.x}, ${d.fit.y})`;
+      if (d.rotate) {
+        r = 'rotate(90)';
+      }
+      console.log(d);
+      return t + ' ' + r
+    });
 
   subnet_group.append("rect")
-    .attr("width", 8 * grid.x_offset)
-    .attr("height", d => d.empty_grid.length % 8 * grid.y_offset )
-    .attr("fill", "url(#diagonalHatch)");
+    .attr("transform", `translate(${grid.x_offset/2}, ${-grid.y_offset/2})`)
+    .attr("width", d => d.w - grid.x_offset)
+    .attr("height", d => d.h - grid.y_offset)
+    .attr("rx", 4)
+    .attr("fill", d => d.color)
+    //.attr("fill-opacity", 0.2);
 
+
+  let tracedPaths = [
+    { x1: 9, y1: 1, x2: 1, y2: 0},
+    { x1: 9, y1: 1, x2: 10, y2: 0},
+    { x1: 9, y1: 5, x2: 10, y2: 0},
+    { x1: 13, y1: 2, x2: 10, y2: 0},
+    { x1: 13, y1: 2, x2: 13, y2: 3},
+    { x1: 13, y1: 3, x2: 10, y2: 4},
+    { x1: 9, y1: 9, x2: 9, y2: 1},
+  ];
+
+  const connections = svg.selectAll("path.tracepath")
+  .data(tracedPaths).join("path")
+    .attr("stroke", "#777777")
+    .attr("stroke-linejoin", "round")
+    .attr("stroke-width", "2px")
+    .attr("class", "tracepath")
+    .attr("fill", "none")
+    .attr("d", d=>line([[d.x1, d.y1],[d.x2,d.y2]]));
+
+  const subnet_label = subnet_group.append("g")
+    .attr("class", "label")
+    .attr("transform", `translate(${grid.x_offset}, 0)`);
+
+  subnet_label.append("text")
+    .attr("x", 10)
+    .attr("y", 5)
+    .text(d => d.prefix + ".0/" + d.nm)
+  .clone(true).lower()
+    .attr("stroke", "white");
+
+  subnet_label.append("circle")
+    .attr("fill", "#000")
+    .attr("r", grid.r);
+
+    /*
   let path = []
   for (let i = 0; i < 400; i++) {
     let s = hindex2xy(i, 16)
-    console.log(i, s);
+    //console.log(i, s);
     path.push(s);
   }
 
@@ -204,8 +306,8 @@ function buildMap(values) {
     .attr("fill", "none")
   .append("path")
     .attr("d", line(path));
-
-  console.log(line(path));
+   */
+  //console.log(line(path));
 
   /*
   .append("path")
@@ -244,14 +346,10 @@ function buildMap(values) {
 
   node.append("text")
     .attr("x", 10)
-    .attr("font-size", "2.0em")
+    .attr("y", 5)
     .attr("text-anchor", "start")
-    .attr("transform", d => {
-        let i = d.orientation;
-        let s = i*90 - 45;
-        return `rotate(${s})`;
-    })
-    .text(d => "." + d.val)
+    .attr("transform", "rotate(-30)")
+    .text(d => d.val)
   .clone(true).lower()
     .attr("stroke", "white");
 
@@ -259,6 +357,25 @@ function buildMap(values) {
     .attr("id", "tap")
     .attr("transform", `translate(${grid.width/2}, ${grid.height/2})`)
   .append("circle")
-    .attr("r", `${grid.r*2}`)
+    .attr("r", `${grid.r*1.5}`)
     .attr("fill", "#a31d21")
+
+  let tracedNodes = [
+    { x: 9, y: 1},
+    { x: 9, y: 3},
+    { x: 9, y: 5},
+    { x: 13, y: 2},
+    { x: 13, y: 3},
+    { x: 9, y: 9},
+  ];
+
+  svg.selectAll("g.traced-node")
+  .data(tracedNodes).join("g")
+    .attr("class", "traced-node")
+    .attr("transform", d=>`translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
+  .append("circle")
+    .attr("r", grid.r*2)
+    .attr("fill", "white")
+    .attr("stroke", "black")
+
 }

@@ -8,7 +8,7 @@
 </g>
 <g id="device">
 </g>
-<g id="gateway">
+<g id="gateway" transform="scale(0.03) translate(100, 100)";>
 	<rect x="0" width="1000" height="375"/>
 	<rect x="375" y="375" transform="matrix(-1.836970e-16 1 -1 -1.836970e-16 1375 -375)" width="1000" height="250"/>
 	<rect x="-375" y="375" transform="matrix(-1.836970e-16 1 -1 -1.836970e-16 625 375)" width="1000" height="250"/>
