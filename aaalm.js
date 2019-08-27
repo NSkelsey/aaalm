@@ -181,7 +181,7 @@ function buildMap(values) {
   let devices = subnets[0].devices;
 
   const grid = {width: 1112,
-                height: 635,
+                height: 645,
                 // Per node spacing
                 x_offset: 50,
                 y_offset: 40,
@@ -194,8 +194,10 @@ function buildMap(values) {
     .curve(d3.curveStep)
     //.x(d=>d.x*grid.x_offset)
     //.y(d=>d.y*grid.y_offset);
-    .x(d=>d[0]*grid.x_offset)
-    .y(d=>d[1]*grid.y_offset);
+    .x(d=>d[0]*grid.x_offset - 12)
+    .y(d=>d[1]*grid.y_offset - 12);
+
+  const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
 
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.prefix, subnet.devices, j);
@@ -204,7 +206,6 @@ function buildMap(values) {
     subnet.orientation = j;
 
 
-    const colors = d3.schemePastel1;
 
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
@@ -233,6 +234,8 @@ function buildMap(values) {
     .attr("transform", `translate(${grid.x_pad}, ${grid.y_pad})`)
 
 
+
+
   const subnet_group = svg.selectAll("g.subnet-group")
     .data(subnets)
   .enter().append("g")
@@ -256,13 +259,52 @@ function buildMap(values) {
     //.attr("fill-opacity", 0.2);
 
 
+  let tracedNodes = [
+    { x: 9, y: 1, d: 0, c: 0},
+    { x: 9, y: 3, d: 0, c: 7},
+    { x: 9, y: 5, d: 0, c: 2},
+    { x: 13, y: 2, d: 1, c: 1},
+    { x: 13, y: 3, d: 3, c: 4},
+    { x: 9, y: 9, d: 0, c:3},
+  ];
+
+  let tracedNode = svg.selectAll("g.traced-node")
+  .data(tracedNodes).join("g")
+    .attr("class", "traced-node")
+    .attr("transform", d=>`translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
+
+  tracedNode.append("rect")
+    .attr("transform", d => {
+        let t = `translate(${-grid.x_offset/2 - 5}, ${-grid.y_offset/2})`;
+        let r = `rotate(${d.d * 90})`;
+        return r + ' ' + t;
+    })
+    .attr("width", grid.x_offset - 2)
+    .attr("height", grid.y_offset)
+    .attr("rx", 4)
+    .attr("fill", d=>colors[d.c])
+
+
+  tracedNode.append("circle")
+    .attr("r", grid.r*2)
+    .attr("fill", "white")
+    .attr("stroke", "black")
+
+  tracedNode.append("path")
+    .attr("stroke", "#777777")
+    .attr("stroke-width", "2px")
+    .attr("stroke-opacity", 0.7)
+    .attr("stroke-linejoin", "round")
+    .attr("fill", "none")
+    .attr("d", "M-12,-12L-4,-4")
+
   let tracedPaths = [
-    { x1: 9, y1: 1, x2: 1, y2: 0},
+    { x1: 9, y1: 1, x2: 4, y2: 2},
     { x1: 9, y1: 1, x2: 10, y2: 0},
     { x1: 9, y1: 5, x2: 10, y2: 0},
     { x1: 13, y1: 2, x2: 10, y2: 0},
     { x1: 13, y1: 2, x2: 13, y2: 3},
-    { x1: 13, y1: 3, x2: 10, y2: 4},
+    { x1: 13, y1: 3, x2: 9, y2: 9},
     { x1: 9, y1: 9, x2: 9, y2: 1},
   ];
 
@@ -271,6 +313,7 @@ function buildMap(values) {
     .attr("stroke", "#777777")
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", "2px")
+    .attr("stroke-opacity", 0.7)
     .attr("class", "tracepath")
     .attr("fill", "none")
     .attr("d", d=>line([[d.x1, d.y1],[d.x2,d.y2]]));
@@ -345,7 +388,7 @@ function buildMap(values) {
     .attr("r", grid.r);
 
   node.append("text")
-    .attr("x", 10)
+    .attr("x", 5)
     .attr("y", 5)
     .attr("text-anchor", "start")
     .attr("transform", "rotate(-30)")
@@ -355,27 +398,25 @@ function buildMap(values) {
 
   const center_dot = svg.append("g")
     .attr("id", "tap")
-    .attr("transform", `translate(${grid.width/2}, ${grid.height/2})`)
-  .append("circle")
-    .attr("r", `${grid.r*1.5}`)
-    .attr("fill", "#a31d21")
+    .attr("transform", `translate(${4*grid.x_offset}, ${2*grid.y_offset})`)
 
-  let tracedNodes = [
-    { x: 9, y: 1},
-    { x: 9, y: 3},
-    { x: 9, y: 5},
-    { x: 13, y: 2},
-    { x: 13, y: 3},
-    { x: 9, y: 9},
-  ];
-
-  svg.selectAll("g.traced-node")
-  .data(tracedNodes).join("g")
-    .attr("class", "traced-node")
-    .attr("transform", d=>`translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
-  .append("circle")
-    .attr("r", grid.r*2)
+  center_dot.append("circle")
+    .attr("r", `${grid.r*2}`)
     .attr("fill", "white")
     .attr("stroke", "black")
+    .attr("stroke-width", "1px")
+
+  center_dot.append("circle")
+    .attr("r", `${grid.r*1.0}`)
+    .attr("fill", "#a31d21")
+
+  center_dot.append("path")
+    .attr("stroke", "#777777")
+    .attr("stroke-width", "2px")
+    .attr("stroke-opacity", 0.7)
+    .attr("stroke-linejoin", "round")
+    .attr("fill", "none")
+    .attr("d", "M-12,-12L-4,-4")
+
 
 }
