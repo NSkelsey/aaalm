@@ -1,4 +1,4 @@
-module Routers;
+module EtherIPv4;
 
 export {
     # Similar to Site::private_address_space without the ipv6 addresses
@@ -10,22 +10,109 @@ export {
        100.64.0.0/10
     };
 
+    redef enum Log::ID += { LOG };
+
+    type TrackedIP: record {
+        # The corresponding address that forms the tuple.
+        dev_src_ip: addr &log;
+
+        # The most commonly used machine address with the dev_src_ip
+        inferred_mac: string &log;
+
+        first_seen: time &log;
+
+        # All of the observed macs and their frequency
+        seen_macs:      table[string] of count;
+
+        device_type: enum { Device, Router, Gateway};
+
+        # Note unused fields for now
+        # seen_routes:   table[addr] of string;
+        # seen_ports:    set[port];
+
+    };
+
+    # Table that maps every ip address to a TrackedIP object for quick lookup
+    global all_ips: table[addr] of TrackedIP;
+
+    type TrackedSubnet: record {
+        net: subnet &log;
+        vlan: count &log &optional;
+        num_devices: count &log;
+    };
+
+    # Table that maps every src mac address to every src ip address found together in a packet
     global mac_src_ip_emitted: table[string] of set[addr];
+
+    # Table that maps every src mac address to every vlan tag found in a packet
     global mac_src_vlan_emitted: table[string] of set[count];
 
+    # Table that tracks the src ip addresses of vlan tagged traffic
     global vlan_ip_emitted: table[count] of set[addr];
+
+    # Table that tracks bogon IPs inside of vlan tagged traffic TODO
     global vlan_ip_strange: table[count] of set[addr];
 
+    # Table of tables that models the arp table of each mac originating traffic
     global mac_src_routing_table: table[string] of table[string] of addr;
 
-    global find_link_local: function(p: bool): count;
+    # build_vlans constructs possible vlans based on the src ip addresses
+    # and their corresponding vlan tag. It will produce results only as good as
+    # the input.
     global build_vlans: function(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet;
+
+    # find_routers lists all mac addrs with more than one source ip this signifies
+    # that the network interface is attached to a router or that the device has 
+    # multiple ip addresses or something funky is going on.
+    #
+    # TODO output should be reversed
     global find_routers: function(p: bool): table[subnet] of string;
+
+    # find_link_local counts of all the mac addrs with just one src ip
+    global find_link_local: function(p: bool): count;
+
+    # infer_subnet uses the devices in `ip_set` to build a `subnet`.
+    #
+    # To generate the mask a bitwise `and` is performed over every addr in ip_set.
+    # The prefix is calculated from the size of the `ip_set` and extended by the
+    # constant factor `f`.
+    #
+    # Normally only a fraction of the actual devices inside of a subnet will be
+    # observed communicating. Extending the prefix by a constant factor expirementally
+    # improved the resulting subnets. Your mileage may vary.
+    global infer_subnet: function(ip_set: set[addr], f: count): subnet;
+
+    # output_summary produces verbose output to std-out
     global output_summary: function();
 }
 
+
 event raw_packet(p: raw_pkt_hdr)
 {
+    # if the packet is ipv4 and has a mac src process it.
+    if ((p?$ip) && (p$l2?$src)) {
+        local dev_src_ip = p$ip$src;
+
+        local dev: TrackedIP;
+        if (dev_src_ip !in all_ips) {
+            dev$first_seen = network_time();
+            dev$dev_src_ip=dev_src_ip;
+            dev$inferred_mac = "";
+
+            all_ips[dev_src_ip] = dev;
+        } else {
+            dev = all_ips[dev_src_ip];
+        }
+        local dev_src_mac = p$l2$src;
+
+        if (dev_src_mac !in dev$seen_macs) {
+            dev$seen_macs[dev_src_mac] = 1;
+        } else {
+            dev$seen_macs[dev_src_mac] = dev$seen_macs[dev_src_mac] + 1;
+        }
+    }
+
+
     # Check if the packet is a vlan tagged ipv4 packet inside of an ethernet frame
     # If so add it to the data structures defined above
     if (p?$ip && p$l2?$src && p$l2?$vlan) {
@@ -57,15 +144,7 @@ event raw_packet(p: raw_pkt_hdr)
     }
 }
 
-# infer_subnet uses the devices in `ip_set` to build a `subnet`.
-#
-# To generate the mask a bitwise `and` is performed over every addr in ip_set.
-# The prefix is calculated from the size of the `ip_set` and extended by the
-# constant factor `f`.
-#
-# Normally only a fraction of the actual devices inside of a subnet will be
-# observed communicating. Extending the prefix by a constant factor expirementally
-# improved the resulting subnets. Your mileage may vary.
+
 function infer_subnet(ip_set: set[addr], f: count): subnet
 {
     # Create an ip mask using a bitwise 'and' across all ips in the passed set
@@ -83,9 +162,7 @@ function infer_subnet(ip_set: set[addr], f: count): subnet
     return mask_addr(snet_mask, 32-snet_prefix);
 }
 
-# build_vlans constructs possible vlans based on the src ip addresses
-# and their corresponding vlan tag. It will produce results only as good as
-# the input.
+
 function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet
 {
     local vlan_subnets: table[count] of subnet;
@@ -107,6 +184,7 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
         vlan_subnets[_vlan] = snet;
 
+        # TODO this must become a TSV with at least "vlan,subnet,num_ips";
         if (p) {
             print _vlan, snet, |set_ip|;
             if (|strange| > 0) {
@@ -121,7 +199,6 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
 function find_routers(p: bool): table[subnet] of string
 {
-    # List all mac addrs with more than one src ip
     local r_t: table[subnet] of string;
 
     for (mac_src in mac_src_ip_emitted) {
@@ -146,9 +223,9 @@ function find_routers(p: bool): table[subnet] of string
     return r_t;
 }
 
+
 function find_link_local(p: bool): count
 {
-    # List all mac addrs with just one src ip
     local cnt = 0;
     for (mac_src in mac_src_ip_emitted) {
         local ip_set = mac_src_ip_emitted[mac_src];
@@ -159,6 +236,7 @@ function find_link_local(p: bool): count
     return cnt;
 }
 
+
 function output_summary()
 {
     print "Observed subnets:";
@@ -166,7 +244,7 @@ function output_summary()
     print vlan_subnets;
     print "";
     print "Routers with subnets behind:";
-    find_routers(T);
+    print find_routers(T);
     local cnt = find_link_local(T);
     print "";
     print fmt("Seen: %d devices that could be link local", cnt);
