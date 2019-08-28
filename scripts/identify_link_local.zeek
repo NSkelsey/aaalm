@@ -1,20 +1,11 @@
+@load base/protocols/http
+@load base/protocols/dns
+
 @load policy/protocols/conn/known-hosts
 @load policy/protocols/conn/mac-logging
 @load policy/protocols/conn/vlan-logging
 
-@load identify_routers
-
 module Track;
-
-redef Known::use_host_store = F;
-redef Site::local_nets = {
-   192.168.0.0/16,
-   127.0.0.0/8,
-   172.16.0.0/12,
-   10.0.0.0/8,
-   100.64.0.0/10
-};
-redef Known::host_tracking = LOCAL_HOSTS;
 
 export {
     redef enum Log::ID += { LOG };
@@ -31,8 +22,10 @@ export {
 
         # name is the domain name that a DNS server inside provided for the given IP.
         name: string &log;
+
         # unique_mac is the machine address code observed used by a single IP src/mac src pair.
         unique_mac: string &log;
+
         # user_agent is the UA header (or host header) observed in a cleartext HTTP request or response
         user_agent: string &log;
     };
@@ -45,8 +38,9 @@ export {
 }
 
 
-event raw_packet(p: raw_pkt_hdr) {
-    # if the packet is ipv4, has a mac src and is in all_ips
+event raw_packet(p: raw_pkt_hdr)
+{
+    # if the packet is ipv4 and has a mac src process it.
     if ((p?$ip) && (p$l2?$src)) {
         local dev_src_ip = p$ip$src;
 
@@ -77,11 +71,8 @@ event zeek_init()
 {
 }
 
-event log_software(rec: Software::Info) {
-    print "Saw software version!!", rec;
-}
-
-event DNS::log_dns(rec: DNS::Info) {
+event DNS::log_dns(rec: DNS::Info)
+{
     # Only extract A records of known devices in the network
     if (rec?$qtype && rec$qtype == 1 && rec?$answers && |rec$answers| > 0) {
        local e = extract_ip_addresses(rec$answers[0]);
@@ -100,7 +91,8 @@ event DNS::log_dns(rec: DNS::Info) {
     }
 }
 
-event HTTP::log_http(rec: HTTP::Info) {
+event HTTP::log_http(rec: HTTP::Info)
+{
     if (rec?$user_agent) {
         local c = rec$id$orig_h;
         local s: set[string];
@@ -120,7 +112,8 @@ event HTTP::log_http(rec: HTTP::Info) {
     }
 }
 
-function proc_dev(d: TrackedDevice) : TrackedDevice {
+function proc_dev(d: TrackedDevice) : TrackedDevice
+{
     local h_cnt = 0;
     if (|d$seen_macs| == 1) {
         for (mac in d$seen_macs) {
@@ -137,7 +130,8 @@ function proc_dev(d: TrackedDevice) : TrackedDevice {
 }
 
 
-event zeek_done() {
+event zeek_done()
+{
     local cnt: count = 0;
     local found: count = 0;
     for (_ip in a_record_map) {
@@ -216,5 +210,4 @@ event zeek_done() {
 
         print o;
     }
-    #Routers::output_summary();
 }

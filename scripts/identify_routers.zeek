@@ -1,13 +1,7 @@
-# This program analyzes a pcap to hueristically determine vlan tags
-# Usage: zeek -r <pcap_filen> ./identify_routers.zeek
-
-@load policy/protocols/conn/known-hosts
-@load policy/protocols/conn/mac-logging
-@load policy/protocols/conn/vlan-logging
-
 module Routers;
 
 export {
+    # Similar to Site::private_address_space without the ipv6 addresses
     global local_nets = {
        192.168.0.0/16,
        127.0.0.0/8,
@@ -30,7 +24,8 @@ export {
     global output_summary: function();
 }
 
-event raw_packet(p: raw_pkt_hdr) {
+event raw_packet(p: raw_pkt_hdr)
+{
     # Check if the packet is a vlan tagged ipv4 packet inside of an ethernet frame
     # If so add it to the data structures defined above
     if (p?$ip && p$l2?$src && p$l2?$vlan) {
@@ -62,36 +57,38 @@ event raw_packet(p: raw_pkt_hdr) {
     }
 }
 
-function infer_subnet(ip_set: set[addr]): subnet {
+# infer_subnet uses the devices in `ip_set` to build a `subnet`.
+#
+# To generate the mask a bitwise `and` is performed over every addr in ip_set.
+# The prefix is calculated from the size of the `ip_set` and extended by the
+# constant factor `f`.
+#
+# Normally only a fraction of the actual devices inside of a subnet will be
+# observed communicating. Extending the prefix by a constant factor expirementally
+# improved the resulting subnets. Your mileage may vary.
+function infer_subnet(ip_set: set[addr], f: count): subnet
+{
     # Create an ip mask using a bitwise 'and' across all ips in the passed set
-    local iv: index_vec = [4294967295];
+    local iv: index_vec = [4294967295]; # 255.255.255.255
     for (_ip in ip_set) {
         local c: index_vec = addr_to_counts(_ip);
         iv[0] = iv[0] & c[0];
     }
+    local snet_mask = counts_to_addr(iv);
 
-    local b = floor(log10(|ip_set|)/log10(2))+6;
-    local snet_mask = double_to_count(b);
-    local pos_snet = counts_to_addr(iv);
+    # Generate the prefix adding the constant factor.
+    local b = floor(log10(|ip_set|)/log10(2))+f;
+    local snet_prefix = double_to_count(b);
 
-    # Try to infer an appropriate subnet mask based on the actual number
-    # of hosts seen inside of the network. This is a hueristic.
-    local snet = mask_addr(pos_snet, 32-snet_mask);
-
-    return snet;
+    return mask_addr(snet_mask, 32-snet_prefix);
 }
 
-function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet {
-    # This function constructs possible vlans based on the src ip addresses
-    # and their corresponding vlan tag. It will produce results only as good as
-    # the input.
+# build_vlans constructs possible vlans based on the src ip addresses
+# and their corresponding vlan tag. It will produce results only as good as
+# the input.
+function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet
+{
     local vlan_subnets: table[count] of subnet;
-
-    if (p) {
-        print "vlan,subnet,num_ips";
-        print "0,,0";
-        print "9999,,0";
-    }
 
     for (_vlan in vlan_ip_tbl_set) {
         local set_ip = vlan_ip_tbl_set[_vlan];
@@ -106,24 +103,24 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
         set_ip = set_ip - strange;
 
-        local snet = infer_subnet(set_ip);
+        local snet = infer_subnet(set_ip, 6);
 
         vlan_subnets[_vlan] = snet;
 
         if (p) {
             print _vlan, snet, |set_ip|;
             if (|strange| > 0) {
-                #print "non local to vlan", _vlan, strange;
+                print "non local to vlan", _vlan, strange;
             }
         }
     };
 
-
-
     return vlan_subnets;
 }
 
-function find_routers(p: bool): table[subnet] of string {
+
+function find_routers(p: bool): table[subnet] of string
+{
     # List all mac addrs with more than one src ip
     local r_t: table[subnet] of string;
 
@@ -136,7 +133,7 @@ function find_routers(p: bool): table[subnet] of string {
             }
         }
         if (|ip_set| > 1) {
-            local sn = infer_subnet(ip_set);
+            local sn = infer_subnet(ip_set, 6);
             #print mac_src, infer_subnet(ip_set);
             if (sn in r_t) {
                 #print "OMG subnet not unique!!";
@@ -149,9 +146,9 @@ function find_routers(p: bool): table[subnet] of string {
     return r_t;
 }
 
-function find_link_local(p: bool): count {
+function find_link_local(p: bool): count
+{
     # List all mac addrs with just one src ip
-
     local cnt = 0;
     for (mac_src in mac_src_ip_emitted) {
         local ip_set = mac_src_ip_emitted[mac_src];
@@ -162,9 +159,10 @@ function find_link_local(p: bool): count {
     return cnt;
 }
 
-function output_summary() {
+function output_summary()
+{
     print "Observed subnets:";
-    local vlan_subnets = build_vlans(vlan_ip_emitted, F);
+    local vlan_subnets = build_vlans(vlan_ip_emitted, T);
     print vlan_subnets;
     print "";
     print "Routers with subnets behind:";

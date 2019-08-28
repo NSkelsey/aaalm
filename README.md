@@ -19,10 +19,11 @@ After following the installation instructions, run zeek with the following comma
 
 ```zsh
 > zeek -b ... # todo
-# note the Verbose flag with provided lots of output.
+# note the Verbose flag will output a set of subnets that can be used as a starting point
+# to define the `Sites::local_nets` set.
 ```
 
-The `topology.log` file will contain the inferred network structure.
+The `device_topo.log` file will contain the inferred network structure, while `subnet_topo.log` will contain the identifed local looking networks.
 
 Simply navigate to the `viz/index.html` file with your browser and follow the instructions to generate a map.
 
@@ -41,7 +42,7 @@ Note that this package uses the `raw_packet` event to analyze __every packet__ c
 If you are using a cluster to monitor gigabit loads __do not use__ this package __in realtime__.
 Execution against __hundreds of megabytes__ of traffic produces meaningful output in __less than thirty seconds__.
 
-If you are monitoring traffic in tens or hundreds gigabits per second but do not already know your network's layout, you may have __other problems__.
+If you are monitoring traffic in tens or hundreds of gigabits per second but do not already know your network's layout, you may have __other problems__.
 
 ### Techniques Used
 
