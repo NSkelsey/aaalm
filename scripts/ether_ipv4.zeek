@@ -10,10 +10,10 @@ export {
        100.64.0.0/10
     };
 
-    redef enum Log::ID += { LOG };
+    redef enum Log::ID += { LOG_DEV, LOG_NET };
 
     type TrackedIP: record {
-        # The corresponding address that forms the tuple.
+        # The tracked source address
         dev_src_ip: addr &log;
 
         # The most commonly used machine address with the dev_src_ip
@@ -22,9 +22,13 @@ export {
         first_seen: time &log;
 
         # All of the observed macs and their frequency
-        seen_macs:      table[string] of count;
+        seen_macs: table[string] of count ;
 
-        device_type: enum { Device, Router, Gateway};
+        device_type: enum { DEVICE, ROUTER, GATEWAY } &log;
+
+        possible_vlan: count &log  &optional;
+        possible_subnet: subnet &log &optional;
+        possible_r_subnet: subnet &log &optional;
 
         # Note unused fields for now
         # seen_routes:   table[addr] of string;
@@ -91,12 +95,12 @@ event raw_packet(p: raw_pkt_hdr)
 {
     # if the packet is ipv4 and has a mac src process it.
     if ((p?$ip) && (p$l2?$src)) {
-        local dev_src_ip = p$ip$src;
+        local dev_src_ip: addr = p$ip$src;
 
         local dev: TrackedIP;
         if (dev_src_ip !in all_ips) {
             dev$first_seen = network_time();
-            dev$dev_src_ip=dev_src_ip;
+            dev$dev_src_ip = dev_src_ip;
             dev$inferred_mac = "";
 
             all_ips[dev_src_ip] = dev;
@@ -110,6 +114,14 @@ event raw_packet(p: raw_pkt_hdr)
         } else {
             dev$seen_macs[dev_src_mac] = dev$seen_macs[dev_src_mac] + 1;
         }
+
+        local s: set[addr];
+        if (dev_src_mac !in mac_src_ip_emitted) {
+            mac_src_ip_emitted[dev_src_mac] = s;
+        } else {
+            s = mac_src_ip_emitted[dev_src_mac];
+        }
+        add s[dev_src_ip];
     }
 
 
@@ -120,16 +132,12 @@ event raw_packet(p: raw_pkt_hdr)
         local ip_src = p$ip$src;
         local vlan = p$l2$vlan;
 
-        local s: set[addr];
         local g: set[count];
-        if (mac_src !in mac_src_ip_emitted) {
-            mac_src_ip_emitted[mac_src] = s;
+        if (mac_src !in mac_src_vlan_emitted) {
             mac_src_vlan_emitted[mac_src] = g;
         } else {
-            s = mac_src_ip_emitted[mac_src];
             g = mac_src_vlan_emitted[mac_src];
         }
-        add s[ip_src];
         add g[vlan];
 
         local h: set[addr];
@@ -213,7 +221,7 @@ function find_routers(p: bool): table[subnet] of string
             local sn = infer_subnet(ip_set, 6);
             #print mac_src, infer_subnet(ip_set);
             if (sn in r_t) {
-                #print "OMG subnet not unique!!";
+                #NOTE the subnet is not unique
                 ;
             }
             r_t[sn] = mac_src;
