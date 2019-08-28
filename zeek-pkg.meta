@@ -1,0 +1,5 @@
+[package]
+script_dir = scripts
+description = tag and group devices based on the LAN's structure
+tags = topology, mapping, visualization
+version = 0.1.0
