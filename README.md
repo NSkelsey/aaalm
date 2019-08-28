@@ -1,6 +1,6 @@
 # aaalm
 
-aaalm is a zeek package that infers the structure of an IPv4 network over Ethernet from communication among hosts.
+aaalm is a zeek package that passively infers the structure of an IPv4 network over Ethernet from communication among hosts.
 
 It will discover gateways, routers, and associate devices to subnets and vlans based on a series of hueristics from raw packets and network connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
 
@@ -23,7 +23,7 @@ After following the installation instructions, run zeek with the following comma
 # to define the `Sites::local_nets` set.
 ```
 
-The `device_topo.log` file will contain the inferred network structure, while `subnet_topo.log` will contain the identifed local looking networks.
+The `devices.log` file will contain the inferred network structure, while `subnet_topo.log` will contain the identifed local looking networks.
 
 Simply navigate to the `viz/index.html` file with your browser and follow the instructions to generate a map.
 
