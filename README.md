@@ -17,10 +17,10 @@ todo
 
 After following the installation instructions, run zeek with the following command with a packet capture file with lots of inter device communication.
 
-`zsh
+```zsh
 > zeek -b ... # todo
 # note the Verbose flag with provided lots of output.
-`
+```
 
 The `topology.log` file will contain the inferred network structure.
 
@@ -39,9 +39,9 @@ Add `@load ./scripts/identify_paths.zeek` to `main.zeek` to generate `net_paths.
 
 Note that this package uses the `raw_packet` event to analyze __every packet__ contained in a pcap or observed on the monitored interface.
 If you are using a cluster to monitor gigabit loads __do not use__ this package __in realtime__.
-Execution against __hundreds of megabytes__ of traffic produces meaningful output in less than half a minute.
+Execution against __hundreds of megabytes__ of traffic produces meaningful output in __less than thirty seconds__.
 
-If you are monitoring traffic in tens or hundreds gigabits per second, but do not already know your network's layout, you may have __other problems__.
+If you are monitoring traffic in tens or hundreds gigabits per second but do not already know your network's layout, you may have __other problems__.
 
 ### Techniques Used
 
