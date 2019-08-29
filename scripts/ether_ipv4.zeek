@@ -156,66 +156,74 @@ event raw_packet(p: raw_pkt_hdr)
 }
 
 
-function infer_subnet(ip_d_set: set[addr], f: count): subnet
+function power(base: count, exponent: count): count 
+{
+    local v = 1;
+    local i = 0;
+    while (i < exponent) {
+      v = v * base;
+      i += 1;
+    }
+    return v;
+}
+
+
+function recurse_subnet(ip_c_set: set[count], level: count, output_set: set[subnet])
+{
+    #print ip_c_set, level;
+    local contiguous_blocks = vector(24, 16, 8, 7);
+    local e: count = contiguous_blocks[level];
+
+    local divisor = power(2, e);
+
+    local block_sets: table[count] of set[count];
+    for (c in ip_c_set) {
+
+        local t = c / divisor;
+        local s: set[count];
+        if (t in block_sets) {
+           s = block_sets[t];
+        }
+        add s[c];
+        block_sets[t] = s;
+
+    }
+
+    local res: set[subnet];
+    for (cnt in block_sets) {
+        local iv: index_vec = [divisor*cnt];
+        local sn = counts_to_addr(iv);
+        add res[sn/(32 - e)];
+        add output_set[sn/(32 - e)];
+
+        # recurse here; if below has 1 or more subnet do not return
+        if (level < (|contiguous_blocks| - 1)) {
+            recurse_subnet(block_sets[cnt], level + 1, output_set);
+            #res = res & sub_res;
+        }
+    }
+}
+
+
+function infer_subnet(ip_set: set[addr], f: count): subnet
 {
     # Create an ip mask using a bitwise 'and' across all ips in the passed set
-    local iv: index_vec = [4294967295]; # 255.255.255.255
-    print "inferring net";
 
-    local ip_set: set[addr];
-    for (_ip in ip_d_set) {
-        if (use_public || Site::is_private_addr(_ip)) {
-          add ip_set[_ip];
-        }
-    }
+    local ip_c_set: set[count];
 
-    local s: double = |ip_set|;
-    local avg: double = 0.0;
-
-    local d_set: set[double];
     for (_ip in ip_set) {
-        print _ip;
-        local c: index_vec = addr_to_counts(_ip);
-        iv[0] = iv[0] & c[0];
-
-        avg += c[0] / s;
-        add d_set[c[0]];
-    }
-
-    local var: double = 0.0;
-    for (d in d_set) {
-        var = var + (d - avg)*(d - avg);
-    }
-
-    local snet_mask = counts_to_addr(iv);
-
-    local a: vector of count = [double_to_count(avg)];
-
-    local good_ip_set: set[addr];
-    for (d in d_set) {
-        local delta_sigma = 2 * sqrt(var);
-        if (d < (avg - delta_sigma) || d > (avg + delta_sigma)) {
-            print "fuori", d;
-            next;
+        if (use_public || Site::is_private_addr(_ip)) {
+            local j: index_vec = addr_to_counts(_ip);
+            add ip_c_set[j[0]];
         }
-        local j: vector of count = [double_to_count(d)];
-        add good_ip_set[counts_to_addr(j)];
     }
 
-    local biv: index_vec = [4294967295]; # 255.255.255.255
-    for (_ip in good_ip_set) {
-        local x: index_vec = addr_to_counts(_ip);
-        biv[0] = biv[0] & x[0];
-    }
+    local res: set[subnet];
+    print "infering subnet=============";
+    recurse_subnet(ip_c_set, 0, res);
+    print res;
 
-    local good_snet_mask = counts_to_addr(biv);
-    print iv[0], avg, var, sqrt(var), biv[0];
-
-    # Generate the prefix adding the constant factor.
-    local b = f;#//floor(log10(|ip_set|)/log10(2))+f;
-    local snet_prefix = double_to_count(b);
-
-    return mask_addr(snet_mask, 32-snet_prefix);
+    return 255.0.0.0/32;
 }
 
 
