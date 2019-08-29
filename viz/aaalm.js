@@ -87,8 +87,8 @@ function dropZeekHeaders(blob, b, c, d) {
 }
 
 let promises = [
-  d3.tsv("subnet.log"),
-  d3.tsv("device.log")
+  d3.tsv("local/subnet.log"),
+  d3.tsv("local/device.log")
 ];
 
 Promise.all(promises).then(buildMap);
@@ -120,8 +120,8 @@ function buildMap(values) {
 
   setupHTML(metadata);
 
-  const grid = {width: 2112,
-                height: 800,
+  const grid = {width: 1112,
+                height: 645,
                 // Per node spacing
                 x_offset: 50,
                 y_offset: 40,

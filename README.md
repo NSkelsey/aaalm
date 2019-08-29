@@ -6,24 +6,38 @@ It will discover gateways, routers, and associate devices to subnets and vlans b
 
 The tool inside of `/viz` can then interpret this information to generate a map suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
 
-[nice looking network map]()
+[nice looking network map](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
 
 ## Installation
 
-todo
+Install [Zeek](https://docs.zeek.org/en/stable/quickstart/) and its package manager [zkg](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html).
+
+When the package is listed in the zeek package repository you will be able to use:
+
+```zsh
+> zkg install aaalm
+```
+
+For now simply clone this repository.
+
 
 ## Usage
 
-After following the installation instructions, run zeek with the following command with a packet capture file with lots of inter device communication.
+Run zeek with the following command with a packet capture file with lots of inter device communication.
 
 ```zsh
-> zeek -b ... # todo
-# note the Verbose flag will output a set of subnets that can be used as a starting point
-# to define the `Sites::local_nets` set.
+> zeek -r path/to/file.pcap -b main.zeek
 ```
 
-The `devices.log` file will contain the inferred network structure, while `subnet_topo.log` will contain the identifed local looking networks.
+
+Editing  `Verbose` flag will output a set of subnets that can be used as a starting point to define the `Sites::local_nets` set.
+
+```zsh
+> zeek -r path/to/file.pcap -b main.zeek -e "redef EtherIPv4::Verbose = T;"
+```
+
+The `devices.log` file will contain the inferred network structure, while `subnet.log` will contain the identifed local networks.
 
 Simply navigate to the `viz/index.html` file with your browser and follow the instructions to generate a map.
 
@@ -47,15 +61,15 @@ If you are monitoring traffic in tens or hundreds of gigabits per second but do 
 ### Techniques Used
 
 #### Placing devices in subnets
-By using observed vlan tags as a key - if the traffic contains them - it is exceedingly simple to segment groups of IP addresses into their respective subnets.
+By using observed vlan tags as a key - if the traffic contains them - it's simple to segment groups of IP addresses into their respective subnets.
 
 For each new vlan observed, any tagged traffic with a new `ip_src` address is recorded inside of the vlan's bucket.
 
-todo -- what event is generated
+#### Identifying routers TODO
 
-#### Identifying routers
 Router identification works by tracking unique MACs inside of the `l2_header` and storing the set of `ip_src` addresses.
 
-#### Identifying gateways
+#### Identifying gateways TODO
+
 Gateway identification works similiarly but, handles the special case where emitted traffic seems destined for `0.0.0.0/32`
 

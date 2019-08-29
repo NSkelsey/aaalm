@@ -1,5 +1,3 @@
-# TODO check for ALL_IPs
-@load base/utils/directions-and-hosts
 @load base/utils/site
 
 @load policy/protocols/conn/mac-logging
@@ -9,14 +7,16 @@
 
 module EtherIPv4;
 
-event zeek_init() {
+
+event zeek_init()
+{
     Log::create_stream(EtherIPv4::LOG_DEV, [$columns=EtherIPv4::TrackedIP, $path="device"]);
     Log::create_stream(EtherIPv4::LOG_NET, [$columns=EtherIPv4::TrackedSubnet, $path="subnet"]);
 }
 
-#redef use_public = T;
 
-event zeek_done() {
+event zeek_done()
+{
     local vlan_subnets = build_vlans(vlan_ip_emitted, F);
     local router_subnets = find_routers(F);
 
@@ -41,7 +41,6 @@ event zeek_done() {
                 tracked_snet_vlan$net=sn;
                 Log::write(LOG_NET, tracked_snet_vlan);
             } else {
-                print "subnet already inside of set", sn;
                 t = subnet_vlan[sn];
             }
             add t[vlan];
@@ -54,17 +53,17 @@ event zeek_done() {
 
     }
 
-    #print "RS", router_subnets;
-    # TODO include router subnets in output
-
-    print "VS", vlan_subnets;
-    print "SV", subnet_vlan;
-    #output_summary();
+    if (Verbose) {
+        print "VS", vlan_subnets;
+        print "SV", subnet_vlan;
+        #print "RS", router_subnets;
+        verbose_output_summary();
+    }
 
     for (_ip in all_src_ips) {
         local pd = all_src_ips[_ip];
 
-        if (!use_public && !Site::is_private_addr(_ip)) {
+        if (!Use_public && !Site::is_private_addr(_ip)) {
             next;
         }
 
@@ -88,7 +87,6 @@ event zeek_done() {
             }
         }
 
-        #print _ip, vs;
         #for (i in vs) {
             #poss_vlan = subnet_vlan[vs[i]];
         #}

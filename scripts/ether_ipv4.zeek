@@ -12,8 +12,10 @@ export {
 
     redef enum Log::ID += { LOG_DEV, LOG_NET };
 
+    global Verbose = F &redef;
+
     # Discard from the final output any tracked devices that are public IPs
-    global use_public = F &redef;
+    global Use_public = F &redef;
 
     type TrackedIP: record {
         # The tracked source address
@@ -79,19 +81,11 @@ export {
     # find_link_local counts of all the mac addrs with just one src ip
     global find_link_local: function(p: bool): count;
 
-    # infer_subnet uses the devices in `ip_set` to build a `subnet`.
-    #
-    # To generate the mask a bitwise `and` is performed over every addr in ip_set.
-    # The prefix is calculated from the size of the `ip_set` and extended by the
-    # constant factor `f`.
-    #
-    # Normally only a fraction of the actual devices inside of a subnet will be
-    # observed communicating. Extending the prefix by a constant factor expirementally
-    # improved the resulting subnets. Your mileage may vary.
+    # infer_subnet uses the devices in `ip_set` to build a set of `subnet`s.
+    # These subnets are generated recursively splitting the address space into
+    # contiguous blocks.
     global infer_subnet: function(ip_set: set[addr]): vector of subnet;
 
-    # output_summary produces verbose output to std-out
-    global output_summary: function();
 }
 
 
@@ -171,7 +165,6 @@ function power(base: count, exponent: count): count
 
 function recurse_subnet(ip_c_set: set[count], level: count, output_set: set[subnet])
 {
-    #print ip_c_set, level;
     local contiguous_blocks = vector(24, 16, 8);
     local e: count = contiguous_blocks[level];
 
@@ -220,7 +213,7 @@ function infer_subnet(ip_set: set[addr]): vector of subnet
     local ip_c_set: set[count];
 
     for (_ip in ip_set) {
-        if (use_public || Site::is_private_addr(_ip)) {
+        if (Use_public || Site::is_private_addr(_ip)) {
             local j: index_vec = addr_to_counts(_ip);
             add ip_c_set[j[0]];
         }
@@ -288,7 +281,7 @@ function find_routers(p: bool): table[subnet] of string
         if (|ip_set| > 1) {
             local sn = infer_subnet(ip_set);
             # TODO make the TrackedSubnet object
-            #print mac_src, infer_subnet(ip_set);
+            # print mac_src, infer_subnet(ip_set);
             #if (sn in r_t) {
                 #NOTE the subnet is not unique
             #   ;
@@ -314,15 +307,9 @@ function find_link_local(p: bool): count
 }
 
 
-function output_summary()
+# produces verbose output to std-out
+function verbose_output_summary()
 {
-    print "Observed subnets:";
-    local vlan_subnets = build_vlans(vlan_ip_emitted, T);
-    print vlan_subnets;
-    print "";
-    print "Routers with subnets behind:";
-    print find_routers(T);
     local cnt = find_link_local(T);
-    print "";
     print fmt("Seen: %d devices that could be link local", cnt);
 }
