@@ -43,7 +43,8 @@ export {
     global all_src_ips: table[addr] of TrackedIP;
 
     type TrackedSubnet: record {
-        net: subnet &log;
+        net: subnet &log &optional;
+        net_tree: vector of subnet;
         vlan: count &log &optional;
         num_devices: count &log;
         num_strange: count &log &optional;
@@ -87,7 +88,7 @@ export {
     # Normally only a fraction of the actual devices inside of a subnet will be
     # observed communicating. Extending the prefix by a constant factor expirementally
     # improved the resulting subnets. Your mileage may vary.
-    global infer_subnet: function(ip_set: set[addr], f: count): subnet;
+    global infer_subnet: function(ip_set: set[addr]): vector of subnet;
 
     # output_summary produces verbose output to std-out
     global output_summary: function();
@@ -171,7 +172,7 @@ function power(base: count, exponent: count): count
 function recurse_subnet(ip_c_set: set[count], level: count, output_set: set[subnet])
 {
     #print ip_c_set, level;
-    local contiguous_blocks = vector(24, 16, 8, 7);
+    local contiguous_blocks = vector(24, 16, 8);
     local e: count = contiguous_blocks[level];
 
     local divisor = power(2, e);
@@ -204,8 +205,15 @@ function recurse_subnet(ip_c_set: set[count], level: count, output_set: set[subn
     }
 }
 
+function net_sort(a: subnet, b: subnet): int
+{
+    local c: int = addr_to_counts(subnet_to_addr(a))[0];
+    local d: int = addr_to_counts(subnet_to_addr(b))[0];
+    return d - c;
+}
 
-function infer_subnet(ip_set: set[addr], f: count): subnet
+
+function infer_subnet(ip_set: set[addr]): vector of subnet
 {
     # Create an ip mask using a bitwise 'and' across all ips in the passed set
 
@@ -219,11 +227,15 @@ function infer_subnet(ip_set: set[addr], f: count): subnet
     }
 
     local res: set[subnet];
-    print "infering subnet=============";
     recurse_subnet(ip_c_set, 0, res);
-    print res;
 
-    return 255.0.0.0/32;
+    local v :vector of subnet = vector();
+    for (sn in res) {
+        v += sn;
+    }
+
+    sort(v, net_sort);
+    return v;
 }
 
 
@@ -244,13 +256,13 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
         set_ip = set_ip - strange;
 
-        local snet = infer_subnet(set_ip, 8);
-        local t_snet: TrackedSubnet = [$net=snet, $vlan=_vlan, $num_devices=|set_ip|, $num_strange=|strange|];
+        local snet_tree = infer_subnet(set_ip);
+        local t_snet: TrackedSubnet = [$net_tree=snet_tree, $vlan=_vlan, $num_devices=|set_ip|, $num_strange=|strange|];
 
         vlan_subnets[_vlan] = t_snet;
 
         if (p) {
-            print _vlan, snet, |set_ip|;
+            print _vlan, snet_tree, |set_ip|;
             if (|strange| > 0) {
                 print "non local to vlan", _vlan, strange;
             }
@@ -274,13 +286,14 @@ function find_routers(p: bool): table[subnet] of string
             }
         }
         if (|ip_set| > 1) {
-            local sn = infer_subnet(ip_set, 8);
+            local sn = infer_subnet(ip_set);
+            # TODO make the TrackedSubnet object
             #print mac_src, infer_subnet(ip_set);
-            if (sn in r_t) {
+            #if (sn in r_t) {
                 #NOTE the subnet is not unique
-                ;
-            }
-            r_t[sn] = mac_src;
+            #   ;
+            #
+            #_t[sn] = mac_src;
         }
     }
 

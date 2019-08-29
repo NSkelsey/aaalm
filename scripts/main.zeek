@@ -25,29 +25,39 @@ event zeek_done() {
     for (vlan in vlan_subnets) {
         local tracked_snet_vlan = vlan_subnets[vlan];
 
+        local net_tree = tracked_snet_vlan$net_tree;
+        local j = 0;
+        while (j < |net_tree|) {
+            local sn = net_tree[j];
+            j += 1;
 
-        local sn = tracked_snet_vlan$net;
-        local t: set[count] = set();
+            local t: set[count];
 
-        if (sn !in subnet_vlan) {
-            subnet_vlan[sn] = t;
-        } else {
-            t = subnet_vlan[sn];
+
+            local hack = matching_subnets(sn, subnet_vlan);
+
+            if (|hack| == 0 || subnet_width(hack[0]) != subnet_width(sn)) {
+                subnet_vlan[sn] = set();
+                tracked_snet_vlan$net=sn;
+                Log::write(LOG_NET, tracked_snet_vlan);
+            } else {
+                print "subnet already inside of set", sn;
+                t = subnet_vlan[sn];
+            }
+            add t[vlan];
+
+            if (sn in router_subnets) {
+                local mac = router_subnets[sn];
+                tracked_snet_vlan$router_mac = mac;
+            }
         }
-        add t[vlan];
 
-        if (sn in router_subnets) {
-            local mac = router_subnets[sn];
-            tracked_snet_vlan$router_mac = mac;
-        }
-
-        Log::write(LOG_NET, tracked_snet_vlan);
     }
 
     #print "RS", router_subnets;
     # TODO include router subnets in output
 
-    #print "VS", vlan_subnets;
+    print "VS", vlan_subnets;
     print "SV", subnet_vlan;
     #output_summary();
 
@@ -69,11 +79,19 @@ event zeek_done() {
         local poss_vlan: count = 0;
 
 
-        print _ip, vs;
-        for (i in vs) {
-            poss_vlan_subnet = vs[i];
-            #poss_vlan = subnet_vlan[vs[i]];
+        poss_vlan_subnet = vs[0];
+        local vlan_choices = subnet_vlan[vs[0]];
+
+        if (|vlan_choices| == 1) {
+            for (q in vlan_choices) {
+                poss_vlan = q;
+            }
         }
+
+        #print _ip, vs;
+        #for (i in vs) {
+            #poss_vlan = subnet_vlan[vs[i]];
+        #}
 
         local rs: vector of subnet = matching_subnets(_ip/32, router_subnets);
 
