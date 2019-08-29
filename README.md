@@ -6,7 +6,7 @@ It will discover gateways, routers, and associate devices to subnets and vlans b
 
 The tool inside of `/viz` can then interpret this information to generate a map suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
 
-[nice looking network map](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
+![nice looking network map](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
 
 ## Installation
