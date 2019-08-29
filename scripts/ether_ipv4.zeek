@@ -12,6 +12,9 @@ export {
 
     redef enum Log::ID += { LOG_DEV, LOG_NET };
 
+    # Discard from the final output any tracked devices that are public IPs
+    global use_public = F &redef;
+
     type TrackedIP: record {
         # The tracked source address
         dev_src_ip: addr &log;
@@ -37,24 +40,26 @@ export {
     };
 
     # Table that maps every ip address to a TrackedIP object for quick lookup
-    global all_ips: table[addr] of TrackedIP;
+    global all_src_ips: table[addr] of TrackedIP;
 
     type TrackedSubnet: record {
         net: subnet &log;
         vlan: count &log &optional;
         num_devices: count &log;
+        num_strange: count &log &optional;
+        router_mac: string &log &optional;
     };
 
-    # Table that maps every src mac address to every src ip address found together in a packet
+    # Table that maps every src mac address to every src ip address found together in a packet.
     global mac_src_ip_emitted: table[string] of set[addr];
 
-    # Table that maps every src mac address to every vlan tag found in a packet
+    # Table that maps every src mac address to every vlan tag found in a packet.
     global mac_src_vlan_emitted: table[string] of set[count];
 
-    # Table that tracks the src ip addresses of vlan tagged traffic
+    # Table that tracks every src ip address issued with a specific vlan tag.
     global vlan_ip_emitted: table[count] of set[addr];
 
-    # Table that tracks bogon IPs inside of vlan tagged traffic TODO
+    # Table used to track communication with devices outside of a vlan.
     global vlan_ip_strange: table[count] of set[addr];
 
     # Table of tables that models the arp table of each mac originating traffic
@@ -63,13 +68,11 @@ export {
     # build_vlans constructs possible vlans based on the src ip addresses
     # and their corresponding vlan tag. It will produce results only as good as
     # the input.
-    global build_vlans: function(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet;
+    global build_vlans: function(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of TrackedSubnet;
 
     # find_routers lists all mac addrs with more than one source ip this signifies
     # that the network interface is attached to a router or that the device has 
     # multiple ip addresses or something funky is going on.
-    #
-    # TODO output should be reversed
     global find_routers: function(p: bool): table[subnet] of string;
 
     # find_link_local counts of all the mac addrs with just one src ip
@@ -98,14 +101,14 @@ event raw_packet(p: raw_pkt_hdr)
         local dev_src_ip: addr = p$ip$src;
 
         local dev: TrackedIP;
-        if (dev_src_ip !in all_ips) {
+        if (dev_src_ip !in all_src_ips) {
             dev$first_seen = network_time();
             dev$dev_src_ip = dev_src_ip;
             dev$inferred_mac = "";
 
-            all_ips[dev_src_ip] = dev;
+            all_src_ips[dev_src_ip] = dev;
         } else {
-            dev = all_ips[dev_src_ip];
+            dev = all_src_ips[dev_src_ip];
         }
         local dev_src_mac = p$l2$src;
 
@@ -153,27 +156,72 @@ event raw_packet(p: raw_pkt_hdr)
 }
 
 
-function infer_subnet(ip_set: set[addr], f: count): subnet
+function infer_subnet(ip_d_set: set[addr], f: count): subnet
 {
     # Create an ip mask using a bitwise 'and' across all ips in the passed set
     local iv: index_vec = [4294967295]; # 255.255.255.255
+    print "inferring net";
+
+    local ip_set: set[addr];
+    for (_ip in ip_d_set) {
+        if (use_public || Site::is_private_addr(_ip)) {
+          add ip_set[_ip];
+        }
+    }
+
+    local s: double = |ip_set|;
+    local avg: double = 0.0;
+
+    local d_set: set[double];
     for (_ip in ip_set) {
+        print _ip;
         local c: index_vec = addr_to_counts(_ip);
         iv[0] = iv[0] & c[0];
+
+        avg += c[0] / s;
+        add d_set[c[0]];
     }
+
+    local var: double = 0.0;
+    for (d in d_set) {
+        var = var + (d - avg)*(d - avg);
+    }
+
     local snet_mask = counts_to_addr(iv);
 
+    local a: vector of count = [double_to_count(avg)];
+
+    local good_ip_set: set[addr];
+    for (d in d_set) {
+        local delta_sigma = 2 * sqrt(var);
+        if (d < (avg - delta_sigma) || d > (avg + delta_sigma)) {
+            print "fuori", d;
+            next;
+        }
+        local j: vector of count = [double_to_count(d)];
+        add good_ip_set[counts_to_addr(j)];
+    }
+
+    local biv: index_vec = [4294967295]; # 255.255.255.255
+    for (_ip in good_ip_set) {
+        local x: index_vec = addr_to_counts(_ip);
+        biv[0] = biv[0] & x[0];
+    }
+
+    local good_snet_mask = counts_to_addr(biv);
+    print iv[0], avg, var, sqrt(var), biv[0];
+
     # Generate the prefix adding the constant factor.
-    local b = floor(log10(|ip_set|)/log10(2))+f;
+    local b = f;#//floor(log10(|ip_set|)/log10(2))+f;
     local snet_prefix = double_to_count(b);
 
     return mask_addr(snet_mask, 32-snet_prefix);
 }
 
 
-function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of subnet
+function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of TrackedSubnet
 {
-    local vlan_subnets: table[count] of subnet;
+    local vlan_subnets: table[count] of TrackedSubnet;
 
     for (_vlan in vlan_ip_tbl_set) {
         local set_ip = vlan_ip_tbl_set[_vlan];
@@ -188,11 +236,11 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
         set_ip = set_ip - strange;
 
-        local snet = infer_subnet(set_ip, 6);
+        local snet = infer_subnet(set_ip, 8);
+        local t_snet: TrackedSubnet = [$net=snet, $vlan=_vlan, $num_devices=|set_ip|, $num_strange=|strange|];
 
-        vlan_subnets[_vlan] = snet;
+        vlan_subnets[_vlan] = t_snet;
 
-        # TODO this must become a TSV with at least "vlan,subnet,num_ips";
         if (p) {
             print _vlan, snet, |set_ip|;
             if (|strange| > 0) {
@@ -218,7 +266,7 @@ function find_routers(p: bool): table[subnet] of string
             }
         }
         if (|ip_set| > 1) {
-            local sn = infer_subnet(ip_set, 6);
+            local sn = infer_subnet(ip_set, 8);
             #print mac_src, infer_subnet(ip_set);
             if (sn in r_t) {
                 #NOTE the subnet is not unique

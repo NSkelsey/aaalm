@@ -14,15 +14,19 @@ event zeek_init() {
     Log::create_stream(EtherIPv4::LOG_NET, [$columns=EtherIPv4::TrackedSubnet, $path="subnet"]);
 }
 
+#redef use_public = T;
+
 event zeek_done() {
-    local vlan_subnets = build_vlans(vlan_ip_emitted, T);
+    local vlan_subnets = build_vlans(vlan_ip_emitted, F);
     local router_subnets = find_routers(F);
 
     local subnet_vlan: table[subnet] of set[count];
 
-    # TODO generate TrackedSubnet objects
     for (vlan in vlan_subnets) {
-        local sn = vlan_subnets[vlan];
+        local tracked_snet_vlan = vlan_subnets[vlan];
+
+
+        local sn = tracked_snet_vlan$net;
         local t: set[count] = set();
 
         if (sn !in subnet_vlan) {
@@ -31,39 +35,53 @@ event zeek_done() {
             t = subnet_vlan[sn];
         }
         add t[vlan];
+
+        if (sn in router_subnets) {
+            local mac = router_subnets[sn];
+            tracked_snet_vlan$router_mac = mac;
+        }
+
+        Log::write(LOG_NET, tracked_snet_vlan);
     }
 
+    #print "RS", router_subnets;
+    # TODO include router subnets in output
 
-    print "RS", router_subnets;
-    print "VS", vlan_subnets;
-    output_summary();
+    #print "VS", vlan_subnets;
+    print "SV", subnet_vlan;
+    #output_summary();
 
-    for (_ip in all_ips) {
-        local pd = all_ips[_ip];
+    for (_ip in all_src_ips) {
+        local pd = all_src_ips[_ip];
+
+        if (!use_public && !Site::is_private_addr(_ip)) {
+            next;
+        }
+
         for (mac in pd$seen_macs) {
-            # TODO sort by order and pick the first
+            # TODO sort by order and pick the first; count different macs
             pd$inferred_mac = mac;
         }
 
-        # TODO document these functions
-        local vs: table[subnet] of set[count] = filter_subnet_table(addr_to_subnet(_ip), subnet_vlan);
-        local rs: table[subnet] of string = filter_subnet_table(addr_to_subnet(_ip), router_subnets);
+        local vs: vector of subnet = matching_subnets(_ip/32, subnet_vlan);
 
         local poss_vlan_subnet: subnet = 255.255.255.255/32;
         local poss_vlan: count = 0;
 
-        for (sn in vs) {
-            for (vlan in vs[sn]) {
-                poss_vlan = vlan;
-            }
-            poss_vlan_subnet = sn;
+
+        print _ip, vs;
+        for (i in vs) {
+            poss_vlan_subnet = vs[i];
+            #poss_vlan = subnet_vlan[vs[i]];
         }
+
+        local rs: vector of subnet = matching_subnets(_ip/32, router_subnets);
 
         local poss_router_mac = "";
         local poss_router_subnet: subnet = 255.255.255.255/32;
-        for (sn in rs) {
-            poss_router_mac = rs[sn];
-            poss_router_subnet = sn;
+        for (i in rs) {
+            poss_router_subnet = rs[i];
+            #poss_router_mac = router_subnets[rs[i]];
         }
 
         # TODO assign correct type
