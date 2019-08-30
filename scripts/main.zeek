@@ -12,6 +12,7 @@ event zeek_init()
 {
     Log::create_stream(EtherIPv4::LOG_DEV, [$columns=EtherIPv4::TrackedIP, $path="device"]);
     Log::create_stream(EtherIPv4::LOG_NET, [$columns=EtherIPv4::TrackedSubnet, $path="subnet"]);
+    Log::create_stream(EtherIPv4::LOG_ROUT, [$columns=EtherIPv4::TrackedRouter, $path="router"]);
 }
 
 
@@ -20,7 +21,7 @@ event zeek_done()
     local vlan_subnets = build_vlans(vlan_ip_emitted, F);
 
 
-    local subnet_vlan: table[subnet] of set[count];
+    local subnet_to_vlan: table[subnet] of set[count];
 
     for (vlan in vlan_subnets) {
         local tracked_snet_vlan = vlan_subnets[vlan];
@@ -34,39 +35,41 @@ event zeek_done()
             local t: set[count];
 
 
-            local hack = matching_subnets(sn, subnet_vlan);
+            local hack = matching_subnets(sn, subnet_to_vlan);
 
             if (|hack| == 0 || subnet_width(hack[0]) != subnet_width(sn)) {
-                subnet_vlan[sn] = set();
+                subnet_to_vlan[sn] = set();
                 tracked_snet_vlan$net=sn;
                 Log::write(LOG_NET, tracked_snet_vlan);
             } else {
-                t = subnet_vlan[sn];
+                t = subnet_to_vlan[sn];
             }
             add t[vlan];
-
-            # TODO 
-            #if (sn in router_subnets) {
-            #    local mac = router_subnets[sn];
-            #    tracked_snet_vlan$router_mac = mac;
-            #}
         }
 
     }
 
     local router_subnets = find_routers();
-    local subnet_to_router : table[subnet] of set[count];
+    local subnet_to_router : table[subnet] of TrackedRouter;
 
     for (mac in router_subnets) {
         local router: TrackedRouter = router_subnets[mac];
 
+        Log::write(LOG_ROUT, router);
+
+        # NOTE this collides and overwrites some subnets
+        for (i in router$routed_subnets) {
+            local s = router$routed_subnets[i];
+            subnet_to_router[s] = router;
+        }
     }
 
 
     if (Verbose) {
-        print "VS", vlan_subnets;
-        print "SV", subnet_vlan;
-        print "Routers", router_subnets;
+        print "Vlan-Subnets", vlan_subnets;
+        print "Subnets-to-Vlan", subnet_to_vlan;
+        print "MACs-to-Routers", router_subnets;
+        print "Subnets-to-Routers", subnet_to_router;
         verbose_output_summary();
     }
 
@@ -82,14 +85,15 @@ event zeek_done()
             pd$inferred_mac = mac;
         }
 
-        local vs: vector of subnet = matching_subnets(_ip/32, subnet_vlan);
+        local vs: vector of subnet = matching_subnets(_ip/32, subnet_to_vlan);
 
-        local poss_vlan_subnet: subnet = 255.255.255.255/32;
+        local bcast = 255.255.255.255/32;
+        local poss_vlan_subnet: subnet = bcast;
         local poss_vlan: count = 0;
 
         if (|vs| > 0) {
             poss_vlan_subnet = vs[0];
-            local vlan_choices = subnet_vlan[vs[0]];
+            local vlan_choices = subnet_to_vlan[vs[0]];
             if (|vlan_choices| == 1) {
                 for (q in vlan_choices) {
                     poss_vlan = q;
@@ -97,20 +101,23 @@ event zeek_done()
             }
         }
 
-        #local rs: vector of subnet = matching_subnets(_ip/32, router_subnets);
+        local rs: vector of subnet = matching_subnets(_ip/32, subnet_to_router);
 
         local poss_router_mac = "";
-        local poss_router_subnet: subnet = 255.255.255.255/32;
-        #for (i in rs) {
-        #    poss_router_subnet = rs[i];
-            #poss_router_mac = router_subnets[rs[i]];
-        #}
+        local poss_router_subnet: subnet = bcast;
 
-        # TODO assign correct type
-        #pd$possible_vlan = poss_vlan;
+        if (|rs| > 0) {
+            poss_router_subnet = rs[0];
+            poss_router_mac = subnet_to_router[rs[0]]$mac;
+        }
+
+        pd$possible_subnet = poss_vlan_subnet;
 
         # TODO decide which is more specific and assign based on that
-        pd$possible_subnet = poss_vlan_subnet;
+        if (poss_vlan_subnet == bcast) {
+            pd$possible_subnet = poss_router_subnet;
+        }
+
         pd$possible_r_subnet = poss_router_subnet;
 
         Log::write(LOG_DEV, pd);

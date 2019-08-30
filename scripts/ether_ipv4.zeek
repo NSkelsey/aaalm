@@ -13,7 +13,7 @@ export {
        100.64.0.0/10
     };
 
-    redef enum Log::ID += { LOG_DEV, LOG_NET };
+    redef enum Log::ID += { LOG_DEV, LOG_NET, LOG_ROUT };
 
 
     global Verbose = F &redef;
