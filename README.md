@@ -1,7 +1,5 @@
 # aaalm
 
-[![Build Status](https://travis-ci.org/nskelsey/aaalm.svg?branch=master)](https://travis-ci.org/nskelsey/aaalm)
-
 aaalm is a zeek package that passively infers the structure of an IPv4 network over Ethernet from communication among hosts.
 
 It will discover gateways, routers, and associate devices to subnets and vlans based on hueristics from analysis of raw packets and connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
