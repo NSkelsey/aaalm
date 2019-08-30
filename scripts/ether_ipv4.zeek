@@ -1,6 +1,5 @@
 module EtherIPv4;
 
-
 export {
 
     type obj_type : enum { DEVICE, ROUTER, GATEWAY, };

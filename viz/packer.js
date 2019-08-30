@@ -7,32 +7,32 @@
 * when sorted by max(width,height).
 * Inputs:
 * ------
-*    w:       width of target rectangle
-*      h:      height of target rectangle
-*        blocks: array of any objects that have .w and .h attributes
-*        Outputs:
-*        -------
-*          marks each block that fits with a .fit attribute pointing to a
-*            node with .x and .y coordinates
-*            Example:
-*            -------
-*              var blocks = [
-*                  { w: 100, h: 100 },
-*                      { w: 100, h: 100 },
-*                          { w:  80, h:  80 },
-*                              { w:  80, h:  80 },
-*                                  etc
-*                                      etc
-*                                        ];
-*                                          var packer = new Packer(500, 500);
-*                                            packer.fit(blocks);
-*                                              for(var n = 0 ; n < blocks.length ; n++) {
-*                                                  var block = blocks[n];
-*                                                      if (block.fit) {
-*                                                            Draw(block.fit.x, block.fit.y, block.w, block.h);
-*                                                                }
-*                                                                  }
-*                                                                  ******************************************************************************/
+* w:       width of target rectangle
+* h:      height of target rectangle
+* blocks: array of any objects that have .w and .h attributes
+* Outputs:
+* -------
+* marks each block that fits with a .fit attribute pointing to a
+* node with .x and .y coordinates
+* Example:
+* -------
+* var blocks = [
+*     { w: 100, h: 100 },
+*     { w: 100, h: 100 },
+*     { w:  80, h:  80 },
+*     { w:  80, h:  80 },
+*     etc
+*     etc
+* ];
+* var packer = new Packer(500, 500);
+* packer.fit(blocks);
+* for(var n = 0 ; n < blocks.length ; n++) {
+*     var block = blocks[n];
+*     if (block.fit) {
+*         Draw(block.fit.x, block.fit.y, block.w, block.h);
+*     }
+* }
+******************************************************************************/
 Packer = function(w, h) {
   this.init(w, h);
 };
@@ -52,6 +52,14 @@ Packer.prototype = {
         block.fit = this.splitNode(node, block);
       }
     }
+    let success = true;
+    blocks.forEach(block => {
+      if (!block.hasOwnProperty("fit") || !block.fit.hasOwnProperty("x")) {
+          success = false;
+      }
+    });
+
+    return success;
   },
 
   findNode: function(root, block) {

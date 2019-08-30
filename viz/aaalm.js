@@ -1,7 +1,31 @@
 let files = [];
 
-let sizes = [{w: 1112, h: 645}, {w: 4000, h: 2000}, {w: 6000, h: 2500}];
+let chart_sizes = [{w: 1112, h: 645}, {w: 1917, h: 1112}, {w: 4451, h: 3148}];
+let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 let size = 0;
+
+const grid = {
+    width: -1,
+    height: -1,
+    // Per node spacing
+    x_offset: 50,
+    y_offset: 40,
+    y_pad: 40,
+    x_pad: 0,
+    r: 3,
+    group_pad: 300
+};
+
+
+function setGridSize(idx) {
+    grid.width = chart_sizes[idx].w;
+    grid.height = chart_sizes[idx].h;
+
+    let e = document.getElementById("resize-page");
+    e.style.width = paper_sizes[idx].w;
+    e.style.height = paper_sizes[idx].h;
+}
+
 
 function handleFileSelect(evt) {
     files = evt.target.files;
@@ -19,7 +43,7 @@ function handleFileSelect(evt) {
     document.getElementById(id).innerHTML = output.join('');
 }
 
-function errorProcess(msg) {
+function errorMessage(msg) {
     document.getElementById("error-msg").innerHTML = `Error: ${msg}`
 }
 
@@ -28,9 +52,8 @@ function dropZeekTSVHeaders(raw_text) {
   all_lines = all_lines.slice(6);
 
   all_lines.splice(1,1);
-  console.log("1");
-  console.log(all_lines.pop());
-  console.log(all_lines.pop());
+  all_lines.pop();
+  all_lines.pop();
 
   all_lines[0] = all_lines[0].replace("#fields\t", "");
 
@@ -39,9 +62,12 @@ function dropZeekTSVHeaders(raw_text) {
 
 function processFiles(evt) {
     if (files.length != 2) {
-        errorProcess("Not enough or no files selected");
+        errorMessage("Not enough or no files selected");
         return;
     }
+
+    var e = document.getElementById("size-pick");
+    setGridSize(e.value);
 
     let promises = [];
     for (var i = 0, f; f = files[i]; i++) {
@@ -65,20 +91,30 @@ function processFiles(evt) {
         })
         promises.push(p);
     }
-
     Promise.all(promises).then(buildMap);
 }
 
 function setupHTML(metadata) {
-  let t = d3.select("#title > h2");
-  t.text(`${metadata.name} LAN map`);
+  d3.select("#title > h2")
+    .text(`${metadata.name} LAN map`);
 
-  let i = d3.select("#title > i");
-  i.text(`on ${metadata.date} from ${metadata.iface}`);
+  d3.select("#title > i")
+    .text(`on ${metadata.date} from ${metadata.iface}`);
 
-  let c = d3.select("#creationDate");
   let now = new Date().toLocaleString();
-  c.text(`on ${now}`);
+  d3.select("#creationDate")
+    .text(`on ${now}`);
+
+  d3.select("#totDev")
+    .text(metadata.num_dev);
+
+  d3.select("#totSN")
+    .text(metadata.num_subnets);
+
+  d3.select("#totVLAN")
+    .text(metadata.num_vlans);
+
+  d3.select("#legend").style("display", "flex");
 }
 
 function ip2int(ip) {
@@ -124,11 +160,13 @@ function processDevices(prefix, devices, j) {
     d.orientation = j;
 
     let ip = ip2int(d.dev_src_ip);
-    d.val = ip - subnet_base;
+    //d.val = ip - subnet_base;
+    d.val = d.dev_src_ip.split(".").pop();
 
     let diff = ip - last_ip;
     if (diff > 1) {
       let s = Math.ceil(diff / 128.0);
+      s = Math.min(3, s);
       console.log(diff, s, ctr);
       ctr = ctr + s;
     }
@@ -138,6 +176,7 @@ function processDevices(prefix, devices, j) {
     d.pos = ctr;
     d.x = pos % base + 1;
     d.y = Math.floor(pos / base);
+    console.log(d.dev_src_ip, d.x, d.y)
     ctr++;
     last_ip = ip;
   }
@@ -152,9 +191,7 @@ function deleteForm() {
 }
 
 function buildMap(values) {
-  deleteForm();
-
-
+  promises = [];
 
   let subnets = values[1];
 
@@ -171,26 +208,25 @@ function buildMap(values) {
 
   devices.forEach(d=> {
     let t = sn_map.get(d.possible_subnet);
-    t.devices.push(d);
+    if (t) {
+      t.devices.push(d);
+    } else {
+      console.log(`No subnet for ${d.dev_src_ip} found`);
+    }
   });
+
+  let c_vlans = new Set(subnets.map(d=>d.vlan));
 
   let metadata = {
     name: "",
     date: "20/08/2019",
-    iface: "mora.local"
+    iface: "mora.local",
+    num_dev: devices.length,
+    num_subnets: subnets.length,
+    num_vlans: c_vlans.size
   };
 
   setupHTML(metadata);
-
-  const grid = {width: 1112,
-                height: 600,
-                // Per node spacing
-                x_offset: 50,
-                y_offset: 40,
-                y_pad: 40,
-                x_pad: 0,
-                r: 3,
-                group_pad: 300};
 
   let line = d3.line()
     .curve(d3.curveStep)
@@ -220,14 +256,22 @@ function buildMap(values) {
     subnet.w = (8+1) * grid.x_offset;
     subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
 
+    console.log(subnet.net, subnet.w, subnet.h);
+
     subnet.path = line(makePath(subnet.devices));
   });
 
-  //subnets = subnets.filter(d => d.devices.length);
+  subnets = subnets.filter(d => d.devices.length);
 
   let packer = new Packer(grid.width, grid.height);
   subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
-  packer.fit(subnets);
+  let success = packer.fit(subnets);
+
+  if (!success) {
+    errorMessage(`Could not fit ${subnets.length} subnets and ${devices.length}
+        devices on the page`);
+    return;
+  }
 
   const svg = d3.select("#map")
     .style("width", grid.width)
@@ -247,7 +291,6 @@ function buildMap(values) {
       if (d.rotate) {
         r = 'rotate(90)';
       }
-      console.log(d);
       return t + ' ' + r
     });
 
@@ -421,5 +464,5 @@ function buildMap(values) {
     .attr("fill", "none")
     .attr("d", "M-12,-12L-4,-4")
 
-
+  deleteForm();
 }

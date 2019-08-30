@@ -43,7 +43,9 @@ Editing  `Verbose` flag will output a set of subnets that can be used as a start
 
 The `devices.log` file will contain the inferred network structure, while `subnet.log` will contain the identifed local networks.
 
-Now to see the visualization you must launch be able to run a webserver. With python3 you can launch a server on port 8000 with the following command.
+You can just visit my site to try it out. 
+
+If you want to play with itself try python3 you can launch a server on port 8000 with the following command.
 
 ```
 > # The directory root must be ./viz

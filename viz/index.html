@@ -1,5 +1,5 @@
 <html>
-<link href="https://fonts.googleapis.com/css?family=Merriweather&display=swap" rel="stylesheet">
+<link href="merri.font" rel="stylesheet">
 <style>
 
 body {
@@ -46,7 +46,7 @@ g.device {
   border-top: 2px solid orange;
   border-bottom: 2px solid orange;
 
-  display: flex;
+  display: none;
   flex-direction: row;
 }
 
@@ -110,19 +110,19 @@ svg#map {
 <script src="d3.v5.js"></script>
 </head>
 <body>
-    <page size="A4" layout="portrait" class="flex-box">
+    <page id="resize-page" size="A4" layout="portrait" class="flex-box">
     <div id="title">
         <h2>Generate a network map</h2>
     </div>
 
     <div id="wizard" >
         <br>
-        <label for="size-pick">Select map size</label>
+        <label for="size-pick">Select map size:</label>
 
         <select id="size-pick">
             <option value=0 default>A4</option>
             <option value=1>A3</option>
-            <option value=2>Very big</option>
+            <option value=2>A0</option>
         </select>
 
         <br>
@@ -161,15 +161,6 @@ svg#map {
             <p><b>Legend</b></p>
         </div>
         <div class="labels">
-            <p>Class A</p>
-        </div>
-        <div class="labels">
-            <p>Class B</p>
-        </div>
-        <div class="labels">
-            <p>Class C</p>
-        </div>
-        <div class="labels">
           <p>Devices</p>
           <svg id="device-label" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 1000 1000" style="enable-background:new 0 0 1000 1000;" xml:space="preserve">
@@ -201,13 +192,18 @@ svg#map {
         </div>
         <div class="labels">
             <p>Total Devices</p>
-            <p class="num-dev" id="totDev">57</p>
+            <p class="num-dev" id="totDev">0</p>
         </div>
         <div class="labels">
-            <p>Domain Name</p>
+            <p>Total Subnets</p>
+            <p class="num-dev" id="totSN">0</p>
         </div>
         <div class="labels">
-            <p>Placeholder</p>
+            <p>Total Virtual LANs</p>
+            <p class="num-dev" id="totVLAN">0</p>
+        </div>
+        <div class="labels">
+            <p> </p>
         </div>
     </div>
     </page>
