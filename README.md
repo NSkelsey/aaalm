@@ -43,23 +43,18 @@ Editing  `Verbose` flag will output a set of subnets that can be used as a start
 
 The `devices.log` file will contain the inferred network structure, while `subnet.log` will contain the identifed local networks.
 
-You can just visit my site to try it out. 
 
-If you want to play with itself try python3 you can launch a server on port 8000 with the following command.
+### Generating the graphics
+
+Visit [my site](https://nskelsey.com/aaalm) to try it out.
+
+The DIY version requires that you can run a webserver locally. With python3 it's easy:
 
 ```
-> # The directory root must be ./viz
 > python -m http.server -b localhost
 ```
 
 Now navigate to [the index](https://localhost:8000/) with your browser and follow the instructions to generate a map.
-
-#### Visualizing routing paths TODO
-
-If your packet capture file contains traffic from programs like traceroute, it's possible to visualize these paths.
-
-Add `@load ./scripts/identify_paths.zeek` to `main.zeek` to generate `net_paths.log`.
-
 
 ## Notes
 
@@ -71,6 +66,12 @@ Execution against __hundreds of megabytes__ of traffic produces meaningful outpu
 
 If you are monitoring traffic in tens or hundreds of gigabits per second but do not already know your network's layout, you may have __other problems__.
 
+#### TODO Visualizing routing paths
+
+If your packet capture file contains traffic from programs like traceroute, it's possible to visualize these paths.
+
+Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
+
 ### Techniques Used
 
 #### Placing devices in subnets
@@ -78,11 +79,10 @@ By using observed vlan tags as a key - if the traffic contains them - it's simpl
 
 For each new vlan observed, any tagged traffic with a new `ip_src` address is recorded inside of the vlan's bucket.
 
-#### Identifying routers TODO
+#### TODO Identifying routers
 
 Router identification works by tracking unique MACs inside of the `l2_header` and storing the set of `ip_src` addresses.
 
-#### Identifying gateways TODO
+#### TODO Identifying gateways
 
 Gateway identification works similiarly but, handles the special case where emitted traffic seems destined for `0.0.0.0/32`
-
