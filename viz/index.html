@@ -102,14 +102,47 @@ svg#map {
     font: monospace;
 }
 
+#error-msg {
+    color: red;
+}
+
 </style>
 <script src="d3.v5.js"></script>
 </head>
 <body>
     <page size="A4" layout="portrait" class="flex-box">
     <div id="title">
-        <h2>EurasiaSpar IPv4 Map</h2>
-        <i>on 20 August, 2019 from mora.local</i>
+        <h2>Generate a network map</h2>
+    </div>
+
+    <div id="wizard" >
+        <br>
+        <label for="size-pick">Select map size</label>
+
+        <select id="size-pick">
+            <option value=0 default>A4</option>
+            <option value=1>A3</option>
+            <option value=2>Very big</option>
+        </select>
+
+        <br>
+        <label for="device-file">Select the <b>device.log</b> and <b>subnet.log</b> file:</label>
+
+        <input type="file"
+               id="device-file" name="processor"
+               multiple
+               onchange="handleFileSelect(event)"
+               >
+        <p>Please note that this form does not post data anywhere.
+           It only processes local files.
+        </p>
+        <ul id="file-list">
+
+        </ul>
+
+
+        <button onclick="processFiles(event)" >Generate</button>
+        <p id="error-msg"></p>
     </div>
     <div id="viz">
         <svg id="map">

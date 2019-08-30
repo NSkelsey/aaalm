@@ -1,3 +1,74 @@
+let files = [];
+
+let sizes = [{w: 1112, h: 645}, {w: 4000, h: 2000}, {w: 6000, h: 2500}];
+let size = 0;
+
+function handleFileSelect(evt) {
+    files = evt.target.files;
+
+    console.log("blah", evt);
+    let id = "file-list";
+
+    var output = [];
+    for (var i = 0, f; f = files[i]; i++) {
+        output.push('<li><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ',
+        f.size, ' bytes, last modified: ',
+        f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
+        '</li>');
+    }
+    document.getElementById(id).innerHTML = output.join('');
+}
+
+function errorProcess(msg) {
+    document.getElementById("error-msg").innerHTML = `Error: ${msg}`
+}
+
+function dropZeekTSVHeaders(raw_text) {
+  let all_lines = raw_text.split("\n");
+  all_lines = all_lines.slice(6);
+
+  all_lines.splice(1,1);
+  console.log("1");
+  console.log(all_lines.pop());
+  console.log(all_lines.pop());
+
+  all_lines[0] = all_lines[0].replace("#fields\t", "");
+
+  return all_lines.join("\n");
+}
+
+function processFiles(evt) {
+    if (files.length != 2) {
+        errorProcess("Not enough or no files selected");
+        return;
+    }
+
+    let promises = [];
+    for (var i = 0, f; f = files[i]; i++) {
+
+        if (!f.type.match('text.*')) {
+            continue;
+        }
+
+        var reader = new FileReader();
+
+        p = new Promise((resolve, reject) => {
+            reader.onload = (function(theFile) {
+                return function(e) {
+                    let data = e.target.result;
+                    let c = dropZeekTSVHeaders(data);
+                    resolve(d3.tsvParse(c));
+                }
+            })(f);
+
+            reader.readAsText(f);
+        })
+        promises.push(p);
+    }
+
+    Promise.all(promises).then(buildMap);
+}
+
 function setupHTML(metadata) {
   let t = d3.select("#title > h2");
   t.text(`${metadata.name} LAN map`);
@@ -75,26 +146,17 @@ function processDevices(prefix, devices, j) {
 }
 
 
-// TODO must clean zeek headers && #close on last line && `fields` from tab line
-function dropZeekHeaders(blob, b, c, d) {
-  raw_text = blob.readAsText();
-  let all_lines = raw_text.split("\n");
-
-  all_lines = all_lines.slice(5);
-  all_lines.splice(2);
-
-  return raw_text;
+function deleteForm() {
+  let element = document.getElementById("wizard");
+  element.parentNode.removeChild(element);
 }
 
-let promises = [
-  d3.tsv("local/subnet.log"),
-  d3.tsv("local/device.log")
-];
-
-Promise.all(promises).then(buildMap);
-
 function buildMap(values) {
-  let subnets = values[0];
+  deleteForm();
+
+
+
+  let subnets = values[1];
 
   let sn_map = new Map();
   subnets.forEach(sn=> {
@@ -105,7 +167,7 @@ function buildMap(values) {
 
   subnets.sort((a,b) => a.ip - b.ip);
 
-  let devices = values[1];
+  let devices = values[0];
 
   devices.forEach(d=> {
     let t = sn_map.get(d.possible_subnet);
@@ -121,7 +183,7 @@ function buildMap(values) {
   setupHTML(metadata);
 
   const grid = {width: 1112,
-                height: 645,
+                height: 600,
                 // Per node spacing
                 x_offset: 50,
                 y_offset: 40,
@@ -146,8 +208,6 @@ function buildMap(values) {
     // j is a value 1 through 4 (left, up, right, down)
     subnet.orientation = j;
 
-
-
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
       let o = {color: colors[j%9]};
@@ -163,7 +223,7 @@ function buildMap(values) {
     subnet.path = line(makePath(subnet.devices));
   });
 
-  subnets = subnets.filter(d => d.devices.length);
+  //subnets = subnets.filter(d => d.devices.length);
 
   let packer = new Packer(grid.width, grid.height);
   subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
@@ -175,8 +235,6 @@ function buildMap(values) {
   .append("g")
     .attr("class", "margin")
     .attr("transform", `translate(${grid.x_pad}, ${grid.y_pad})`)
-
-
 
 
   const subnet_group = svg.selectAll("g.subnet-group")

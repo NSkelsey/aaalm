@@ -1,10 +1,14 @@
 # aaalm
 
+[![Build Status](https://travis-ci.org/nskelsey/aaalm.svg?branch=master)](https://travis-ci.org/nskelsey/aaalm)
+
 aaalm is a zeek package that passively infers the structure of an IPv4 network over Ethernet from communication among hosts.
 
 It will discover gateways, routers, and associate devices to subnets and vlans based on hueristics from analysis of raw packets and connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
 
 The tool inside of `/viz` can then interpret this information to generate a map suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
+
+Here's an example.
 
 ![nice looking network map](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
@@ -39,9 +43,16 @@ Editing  `Verbose` flag will output a set of subnets that can be used as a start
 
 The `devices.log` file will contain the inferred network structure, while `subnet.log` will contain the identifed local networks.
 
-Simply navigate to the `viz/index.html` file with your browser and follow the instructions to generate a map.
+Now to see the visualization you must launch be able to run a webserver. With python3 you can launch a server on port 8000 with the following command.
 
-#### Visualizing routing paths
+```
+> # The directory root must be ./viz
+> python -m http.server -b localhost
+```
+
+Now navigate to [the index](https://localhost:8000/) with your browser and follow the instructions to generate a map.
+
+#### Visualizing routing paths TODO
 
 If your packet capture file contains traffic from programs like traceroute, it's possible to visualize these paths.
 

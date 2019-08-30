@@ -1,6 +1,10 @@
 module EtherIPv4;
 
+
 export {
+
+    type obj_type : enum { DEVICE, ROUTER, GATEWAY, };
+
     # Similar to Site::private_address_space without the ipv6 addresses
     global local_nets = {
        192.168.0.0/16,
@@ -12,10 +16,11 @@ export {
 
     redef enum Log::ID += { LOG_DEV, LOG_NET };
 
+
     global Verbose = F &redef;
 
     # Discard from the final output any tracked devices that are public IPs
-    global Use_public = F &redef;
+    global UsePublic = F &redef;
 
     type TrackedIP: record {
         # The tracked source address
@@ -25,11 +30,10 @@ export {
         inferred_mac: string &log;
 
         first_seen: time &log;
+        obj_type: obj_type;
 
         # All of the observed macs and their frequency
         seen_macs: table[string] of count ;
-
-        device_type: enum { DEVICE, ROUTER, GATEWAY } &log;
 
         possible_vlan: count &log  &optional;
         possible_subnet: subnet &log &optional;
@@ -53,6 +57,13 @@ export {
         router_mac: string &log &optional;
     };
 
+    type TrackedRouter: record {
+        mac: string &log;
+        num_ips: count &log;
+        obj_type: obj_type &log;
+        routed_subnets: vector of subnet;
+    };
+
     # Table that maps every src mac address to every src ip address found together in a packet.
     global mac_src_ip_emitted: table[string] of set[addr];
 
@@ -73,10 +84,10 @@ export {
     # the input.
     global build_vlans: function(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : table[count] of TrackedSubnet;
 
-    # find_routers lists all mac addrs with more than one source ip this signifies
-    # that the network interface is attached to a router or that the device has 
-    # multiple ip addresses or something funky is going on.
-    global find_routers: function(p: bool): table[subnet] of string;
+    # find_routers lists all mac addrs with more than one source ip. This signifies
+    # that the network interface is attached to a router or a gateway or that the
+    # network inteface has multiple ip addresses or something funky is going on.
+    global find_routers: function(): table[string] of TrackedRouter;
 
     # find_link_local counts of all the mac addrs with just one src ip
     global find_link_local: function(p: bool): count;
@@ -151,7 +162,7 @@ event raw_packet(p: raw_pkt_hdr)
 }
 
 
-function power(base: count, exponent: count): count 
+function power(base: count, exponent: count): count
 {
     local v = 1;
     local i = 0;
@@ -212,14 +223,22 @@ function infer_subnet(ip_set: set[addr]): vector of subnet
 
     local ip_c_set: set[count];
 
+    local seen_public = F;
     for (_ip in ip_set) {
-        if (Use_public || Site::is_private_addr(_ip)) {
+
+        if (Site::is_private_addr(_ip)) {
             local j: index_vec = addr_to_counts(_ip);
             add ip_c_set[j[0]];
+        } else {
+          seen_public = T;
         }
     }
 
     local res: set[subnet];
+    if (seen_public && UsePublic) {
+        add res[0.0.0.0/0];
+    }
+
     recurse_subnet(ip_c_set, 0, res);
 
     local v :vector of subnet = vector();
@@ -266,27 +285,35 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 }
 
 
-function find_routers(p: bool): table[subnet] of string
+function find_routers(): table[string] of TrackedRouter
 {
-    local r_t: table[subnet] of string;
+    local r_t: table[string] of TrackedRouter;
 
+    UsePublic = F;
     for (mac_src in mac_src_ip_emitted) {
         local ip_set = mac_src_ip_emitted[mac_src];
 
-        for (_ip in ip_set) {
-            if (_ip !in local_nets) {
-                delete ip_set[_ip];
-            }
-        }
         if (|ip_set| > 1) {
-            local sn = infer_subnet(ip_set);
-            # TODO make the TrackedSubnet object
-            # print mac_src, infer_subnet(ip_set);
-            #if (sn in r_t) {
-                #NOTE the subnet is not unique
-            #   ;
-            #
-            #_t[sn] = mac_src;
+            local subnets = infer_subnet(ip_set);
+
+            local tr: TrackedRouter = [
+                $mac=mac_src,
+                $num_ips=|ip_set|,
+                $routed_subnets=subnets,
+                $obj_type=ROUTER
+            ];
+
+            local subnet_set: set[subnet];
+            for (i in subnets) {
+                add subnet_set[subnets[i]];
+            }
+
+            local g = matching_subnets(8.8.8.8/32, subnet_set);
+            if (|g| > 0) {
+                tr$obj_type = GATEWAY;
+            }
+
+            r_t[mac_src] = tr;
         }
     }
 
