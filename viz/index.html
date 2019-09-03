@@ -55,7 +55,7 @@ g.device {
 }
 
 #credit {
-  display: block;
+  display: none;
   float: right;
   font-size: 0.7em;
   margin-bottom: 2px;
@@ -71,8 +71,6 @@ svg#map {
   margin-bottom: 10px;
   font-size: 12px;
 }
-
-
 
 #legend > div.box {
   border-right: 2px solid orange;
@@ -112,7 +110,7 @@ svg#map {
 <body>
     <page id="resize-page" size="A4" layout="portrait" class="flex-box">
     <div id="title">
-        <h2>Generate a network map</h2>
+        <h2>Generate a network map fit for print</h2>
     </div>
 
     <div id="wizard" >
@@ -126,7 +124,7 @@ svg#map {
         </select>
 
         <br>
-        <label for="device-file">Select the <b>device.log</b> and <b>subnet.log</b> file:</label>
+        <label for="device-file">Select the <b>device.log</b>, <b>net_route.log</b>, <b>router.log</b> and <b>subnet.log</b> files:</label>
 
         <input type="file"
                id="device-file" name="processor"

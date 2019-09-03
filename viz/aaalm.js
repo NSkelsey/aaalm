@@ -1,6 +1,6 @@
 let files = [];
 
-let chart_sizes = [{w: 1112, h: 645}, {w: 1917, h: 1112}, {w: 4451, h: 3148}];
+let chart_sizes = [{w: 1112, h: 645}, {w: 1400, h: 1112}, {w: 4451, h: 3148}];
 let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 let size = 0;
 
@@ -10,8 +10,8 @@ const grid = {
     // Per node spacing
     x_offset: 50,
     y_offset: 40,
+    x_pad: 50,
     y_pad: 40,
-    x_pad: 0,
     r: 3,
     group_pad: 300
 };
@@ -27,10 +27,22 @@ function setGridSize(idx) {
 }
 
 
+function symmetricDifference(A, B) {
+  var _difference = new Set(A);
+  for (var elem of B) {
+    if (_difference.has(elem)) {
+      _difference.delete(elem);
+    } else {
+      _difference.add(elem);
+    }
+  }
+  return _difference;
+}
+
+
 function handleFileSelect(evt) {
     files = evt.target.files;
 
-    console.log("blah", evt);
     let id = "file-list";
 
     var output = [];
@@ -61,7 +73,7 @@ function dropZeekTSVHeaders(raw_text) {
 }
 
 function processFiles(evt) {
-    if (files.length != 2) {
+    if (files.length != 4) {
         errorMessage("Not enough or no files selected");
         return;
     }
@@ -79,11 +91,15 @@ function processFiles(evt) {
         var reader = new FileReader();
 
         p = new Promise((resolve, reject) => {
-            reader.onload = (function(theFile) {
+            reader.onload = (function(file) {
                 return function(e) {
                     let data = e.target.result;
                     let c = dropZeekTSVHeaders(data);
-                    resolve(d3.tsvParse(c));
+                    let o = {
+                        name: file.name,
+                        tsv: d3.tsvParse(c)
+                    };
+                    resolve(o);
                 }
             })(f);
 
@@ -91,7 +107,26 @@ function processFiles(evt) {
         })
         promises.push(p);
     }
-    Promise.all(promises).then(buildMap);
+    Promise.all(promises).then(values => {
+        const requiredFiles = new Set(["device.log", "subnet.log", "net_route.log", "router.log"]);
+        let B = new Set();
+        let map = new Map();
+
+        values.forEach(d => {
+            B.add(d.name)
+            map.set(d.name.split('.')[0], d.tsv);
+        });
+
+        let C = symmetricDifference(requiredFiles, B);
+
+        if (C.size != 0) {
+            let e = 'There are missing and extra files';
+            errorMessage(e);
+            throw e;
+        }
+
+        return map;
+    }).then(buildMap);
 }
 
 function setupHTML(metadata) {
@@ -114,6 +149,7 @@ function setupHTML(metadata) {
   d3.select("#totVLAN")
     .text(metadata.num_vlans);
 
+  d3.select("#credit").style("display", "block");
   d3.select("#legend").style("display", "flex");
 }
 
@@ -174,7 +210,7 @@ function processDevices(prefix, devices, j) {
 
     let base = 8
     d.pos = ctr;
-    d.x = pos % base + 1;
+    d.x = pos % base;
     d.y = Math.floor(pos / base);
     console.log(d.dev_src_ip, d.x, d.y)
     ctr++;
@@ -190,10 +226,10 @@ function deleteForm() {
   element.parentNode.removeChild(element);
 }
 
-function buildMap(values) {
+function buildMap(valueMap) {
   promises = [];
 
-  let subnets = values[1];
+  let subnets = valueMap.get("subnet");
 
   let sn_map = new Map();
   subnets.forEach(sn=> {
@@ -204,14 +240,21 @@ function buildMap(values) {
 
   subnets.sort((a,b) => a.ip - b.ip);
 
-  let devices = values[0];
+  let devices = valueMap.get("device");
+
+  let has_pub_internet = sn_map.has("0.0.0.0/0");
 
   devices.forEach(d=> {
+
     let t = sn_map.get(d.possible_subnet);
     if (t) {
       t.devices.push(d);
     } else {
-      console.log(`No subnet for ${d.dev_src_ip} found`);
+      if (has_pub_internet) {
+        t = sn_map.get("0.0.0.0/0");
+      } else {
+        console.log(`No subnet for ${d.dev_src_ip} found`);
+      }
     }
   });
 
@@ -226,14 +269,19 @@ function buildMap(values) {
     num_vlans: c_vlans.size
   };
 
+  let interface_box = {
+    w: 6 * grid.x_offset,
+    h: 3 * grid.x_offset,
+  };
+
   setupHTML(metadata);
 
   let line = d3.line()
     .curve(d3.curveStep)
     //.x(d=>d.x*grid.x_offset)
     //.y(d=>d.y*grid.y_offset);
-    .x(d=>d[0]*grid.x_offset - 12)
-    .y(d=>d[1]*grid.y_offset - 12);
+    .x(d=>d[0]*grid.x_offset)
+    .y(d=>d[1]*grid.y_offset);
 
     //const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
     const colors = d3.schemePastel1;
@@ -247,7 +295,7 @@ function buildMap(values) {
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
       let o = {color: colors[j%9]};
-      o.x = i % 8 + 1;
+      o.x = i % 8;
       o.y = Math.floor(i / 8);
       subnet.empty_grid.push(o);
     }
@@ -261,11 +309,14 @@ function buildMap(values) {
     subnet.path = line(makePath(subnet.devices));
   });
 
-  subnets = subnets.filter(d => d.devices.length);
+  //subnets = subnets.filter(d => d.devices.length);
 
   let packer = new Packer(grid.width, grid.height);
   subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
-  let success = packer.fit(subnets);
+
+
+  let packable_elems = [interface_box].concat(subnets);
+  let success = packer.fit(packable_elems);
 
   if (!success) {
     errorMessage(`Could not fit ${subnets.length} subnets and ${devices.length}
@@ -295,7 +346,7 @@ function buildMap(values) {
     });
 
   subnet_group.append("rect")
-    .attr("transform", `translate(${grid.x_offset/2}, ${-grid.y_offset/2})`)
+    .attr("transform", `translate(${-grid.x_offset/2}, ${-grid.y_offset/2})`)
     .attr("width", d => d.w - grid.x_offset)
     .attr("height", d => d.h - grid.y_offset)
     .attr("rx", 4)
@@ -303,58 +354,47 @@ function buildMap(values) {
     //.attr("fill-opacity", 0.2);
 
 
-    /*
-  let tracedNodes = [
-    { x: 9, y: 1, d: 0, c: 0},
-    { x: 9, y: 3, d: 0, c: 7},
-    { x: 9, y: 5, d: 0, c: 2},
-    { x: 13, y: 2, d: 1, c: 1},
-    { x: 13, y: 3, d: 3, c: 4},
-    { x: 9, y: 9, d: 0, c:3},
-  ];
+  let routers = valueMap.get("router");
 
-  let tracedNode = svg.selectAll("g.traced-node")
-  .data(tracedNodes).join("g")
-    .attr("class", "traced-node")
-    .attr("transform", d=>`translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
+  let routerMap = new Map();
+  routers.forEach((d, i) => {
+      routerMap.set(d.mac, d);
+      if (i < 2) {
+        d.x = 4;
+        d.y = i;
+      } else {
+        d.x = 6 - i;
+        d.y = 2;
+      }
+  });
 
-  tracedNode.append("rect")
-    .attr("transform", d => {
-        let t = `translate(${-grid.x_offset/2 - 5}, ${-grid.y_offset/2})`;
-        let r = `rotate(${d.d * 90})`;
-        return r + ' ' + t;
-    })
-    .attr("width", grid.x_offset - 2)
-    .attr("height", grid.y_offset)
-    .attr("rx", 4)
-    .attr("fill", d=>colors[d.c])
+  let net_routes = valueMap.get("net_route");
 
+  net_routes.forEach(d => {
+    r = routerMap.get(d.router_mac);
+    s = sn_map.get(d.net);
 
-  tracedNode.append("circle")
-    .attr("r", grid.r*2)
-    .attr("fill", "white")
-    .attr("stroke", "black")
+    console.log(d, r, s);
+    d.x1 = r.x;
+    d.y1 = r.y;
+    d.x2 = s.fit.x / grid.x_offset;
+    d.y2 = s.fit.y / grid.y_offset;
+  })
 
-  tracedNode.append("path")
-    .attr("stroke", "#777777")
-    .attr("stroke-width", "2px")
-    .attr("stroke-opacity", 0.7)
-    .attr("stroke-linejoin", "round")
-    .attr("fill", "none")
-    .attr("d", "M-12,-12L-4,-4")
-
-  let tracedPaths = [
-    { x1: 9, y1: 1, x2: 4, y2: 2},
-    { x1: 9, y1: 1, x2: 10, y2: 0},
-    { x1: 9, y1: 5, x2: 10, y2: 0},
-    { x1: 13, y1: 2, x2: 10, y2: 0},
-    { x1: 13, y1: 2, x2: 13, y2: 3},
-    { x1: 13, y1: 3, x2: 9, y2: 9},
-    { x1: 9, y1: 9, x2: 9, y2: 1},
-  ];
+  net_routes = net_routes.concat(subnets.map(d => {
+    if (d.link_local == "T") {
+        return {
+          x1: 0,
+          y1: 0,
+          x2: d.fit.x / grid.x_offset,
+          y2: d.fit.y / grid.y_offset
+        };
+    }
+    return -1;
+  }).filter(d=>d != -1 ));
 
   const connections = svg.selectAll("path.tracepath")
-  .data(tracedPaths).join("path")
+    .data(net_routes).join("path")
     .attr("stroke", "#777777")
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", "2px")
@@ -362,11 +402,34 @@ function buildMap(values) {
     .attr("class", "tracepath")
     .attr("fill", "none")
     .attr("d", d=>line([[d.x1, d.y1],[d.x2,d.y2]]));
-  */
+
+  let router = svg.selectAll("g.router")
+    .data(routers).join("g")
+      .attr("class", "router")
+      .attr("transform", d =>
+          `translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
+
+  router.append("text")
+    .attr("transform", "translate(-23, -12)")
+    .attr("text-anchor", "start")
+    .text(d=> { v = d.mac.split(":"); return `${v[0]}::${v[5]}` });
+
+  router.append("circle")
+    .attr("r", grid.r*2)
+    .attr("fill", "white")
+    .attr("stroke", "black");
+
+  router.append("path")
+    .attr("stroke", "#777777")
+    .attr("stroke-width", "2px")
+    .attr("stroke-opacity", 0.7)
+    .attr("stroke-linejoin", "round")
+    .attr("fill", "none")
+    .attr("d", "M12,12L4,4")
 
   const subnet_label = subnet_group.append("g")
     .attr("class", "label")
-    .attr("transform", `translate(${grid.x_offset}, 0)`);
+    .attr("transform", `translate(0, 0)`);
 
   subnet_label.append("text")
     .attr("x", 10)
@@ -378,32 +441,6 @@ function buildMap(values) {
   subnet_label.append("circle")
     .attr("fill", "#000")
     .attr("r", grid.r);
-
-    /*
-  let path = []
-  for (let i = 0; i < 400; i++) {
-    let s = hindex2xy(i, 16)
-    //console.log(i, s);
-    path.push(s);
-  }
-
-  const connections = subnet_group.append("g")
-    .attr("stroke", "#999")
-    .attr("stroke-linejoin", "round")
-    .attr("stroke-width", "2")
-    .attr("class", "hil-path")
-    .attr("fill", "none")
-  .append("path")
-    .attr("d", line(path));
-   */
-  //console.log(line(path));
-
-  /*
-  .append("path")
-    .attr("fill", "none")
-    .attr("d", d => {
-        return d.path;
-    })*/
 
   const subnet_points = subnet_group.append("g")
     .attr("class", "grid-points")
@@ -444,7 +481,7 @@ function buildMap(values) {
 
   const center_dot = svg.append("g")
     .attr("id", "tap")
-    .attr("transform", `translate(${4*grid.x_offset}, ${2*grid.y_offset})`)
+    .attr("transform", `translate(0, 0)`)
 
   center_dot.append("circle")
     .attr("r", `${grid.r*2}`)

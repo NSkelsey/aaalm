@@ -13,20 +13,17 @@ export {
        100.64.0.0/10
     };
 
-    redef enum Log::ID += { LOG_DEV, LOG_NET, LOG_ROUT };
+    redef enum Log::ID += { LOG_DEV, LOG_NET, LOG_ROUT, LOG_NET_ROUT };
 
 
     global Verbose = F &redef;
 
     # Discard from the final output any tracked devices that are public IPs
-    global UsePublic = F &redef;
+    global UsePublic = T &redef;
 
     type TrackedIP: record {
         # The tracked source address
         dev_src_ip: addr &log;
-
-        # The most commonly used machine address with the dev_src_ip
-        inferred_mac: string &log;
 
         first_seen: time &log;
         obj_type: obj_type;
@@ -34,9 +31,10 @@ export {
         # All of the observed macs and their frequency
         seen_macs: table[string] of count ;
 
-        possible_vlan: count &log  &optional;
-        possible_subnet: subnet &log &optional;
-        possible_r_subnet: subnet &log &optional;
+        possible_subnet: subnet &log;
+
+        #possible_vlan: count &log  &optional;
+        #possible_r_subnet: subnet &log &optional;
 
         # Note unused fields for now
         # seen_routes:   table[addr] of string;
@@ -48,12 +46,12 @@ export {
     global all_src_ips: table[addr] of TrackedIP;
 
     type TrackedSubnet: record {
-        net: subnet &log &optional;
-        net_tree: vector of subnet;
-        vlan: count &log &optional;
+        net: subnet &log;
+        #vlan: count &log &optional;
         num_devices: count &log;
-        num_strange: count &log &optional;
-        router_mac: string &log &optional;
+        #num_strange: count &log &optional;
+        #router_mac: string &log &optional;
+        link_local: bool &log;
     };
 
     type TrackedRouter: record {
@@ -61,6 +59,11 @@ export {
         num_ips: count &log;
         obj_type: obj_type &log;
         routed_subnets: vector of subnet;
+    };
+
+    type TrackedNetRoute: record {
+        router_mac: string &log;
+        net: subnet &log;
     };
 
     # Table that maps every src mac address to every src ip address found together in a packet.
@@ -88,13 +91,13 @@ export {
     # network inteface has multiple ip addresses or something funky is going on.
     global find_routers: function(): table[string] of TrackedRouter;
 
-    # find_link_local counts of all the mac addrs with just one src ip
-    global find_link_local: function(p: bool): count;
+    # find all ip addresses that only have only one mac address associated
+    global find_link_local: function(): set[addr];
 
-    # infer_subnet uses the devices in `ip_set` to build a set of `subnet`s.
+    # infer_subnets uses the devices in `ip_set` to build a set of `subnet`s.
     # These subnets are generated recursively splitting the address space into
     # contiguous blocks.
-    global infer_subnet: function(ip_set: set[addr]): vector of subnet;
+    global infer_subnets: function(ip_set: set[addr]): vector of subnet;
 
 }
 
@@ -109,7 +112,6 @@ event raw_packet(p: raw_pkt_hdr)
         if (dev_src_ip !in all_src_ips) {
             dev$first_seen = network_time();
             dev$dev_src_ip = dev_src_ip;
-            dev$inferred_mac = "";
 
             all_src_ips[dev_src_ip] = dev;
         } else {
@@ -203,7 +205,6 @@ function recurse_subnet(ip_c_set: set[count], level: count, output_set: set[subn
         # recurse here; if below has 1 or more subnet do not return
         if (level < (|contiguous_blocks| - 1)) {
             recurse_subnet(block_sets[cnt], level + 1, output_set);
-            #res = res & sub_res;
         }
     }
 }
@@ -216,33 +217,35 @@ function net_sort(a: subnet, b: subnet): int
 }
 
 
-function infer_subnet(ip_set: set[addr]): vector of subnet
+function infer_subnets(ip_set: set[addr]): vector of subnet
 {
-    # Create an ip mask using a bitwise 'and' across all ips in the passed set
-
     local ip_c_set: set[count];
 
     local seen_public = F;
     for (_ip in ip_set) {
-
-        if (Site::is_private_addr(_ip)) {
-            local j: index_vec = addr_to_counts(_ip);
-            add ip_c_set[j[0]];
-        } else {
-          seen_public = T;
-        }
+      if (Site::is_private_addr(_ip)) {
+        local j: index_vec = addr_to_counts(_ip);
+        add ip_c_set[j[0]];
+      } else {
+        seen_public = T;
+      }
     }
 
     local res: set[subnet];
-    if (seen_public && UsePublic) {
-        add res[0.0.0.0/0];
-    }
+
 
     recurse_subnet(ip_c_set, 0, res);
 
     local v :vector of subnet = vector();
     for (sn in res) {
-        v += sn;
+        local w = subnet_width(sn);
+        if (24 == w) {
+            v += sn;
+        }
+    }
+
+    if (seen_public) {
+        v += 0.0.0.0/0;
     }
 
     sort(v, net_sort);
@@ -267,10 +270,10 @@ function build_vlans(vlan_ip_tbl_set: table[count] of set[addr], p: bool) : tabl
 
         set_ip = set_ip - strange;
 
-        local snet_tree = infer_subnet(set_ip);
-        local t_snet: TrackedSubnet = [$net_tree=snet_tree, $vlan=_vlan, $num_devices=|set_ip|, $num_strange=|strange|];
+        local snet_tree = infer_subnets(set_ip);
+        #local t_snet: TrackedSubnet = [$net_tree=snet_tree, $vlan=_vlan, $num_devices=|set_ip|];
 
-        vlan_subnets[_vlan] = t_snet;
+        #vlan_subnets[_vlan] = t_snet;
 
         if (p) {
             print _vlan, snet_tree, |set_ip|;
@@ -288,12 +291,11 @@ function find_routers(): table[string] of TrackedRouter
 {
     local r_t: table[string] of TrackedRouter;
 
-    UsePublic = F;
     for (mac_src in mac_src_ip_emitted) {
         local ip_set = mac_src_ip_emitted[mac_src];
 
         if (|ip_set| > 1) {
-            local subnets = infer_subnet(ip_set);
+            local subnets = infer_subnets(ip_set);
 
             local tr: TrackedRouter = [
                 $mac=mac_src,
@@ -320,22 +322,18 @@ function find_routers(): table[string] of TrackedRouter
 }
 
 
-function find_link_local(p: bool): count
+function find_link_local(): set[addr]
 {
-    local cnt = 0;
+    local all_link_local: set[addr];
+
     for (mac_src in mac_src_ip_emitted) {
         local ip_set = mac_src_ip_emitted[mac_src];
         if (|ip_set| == 1) {
-            cnt += 1;
+            for (ip in ip_set) {
+                add all_link_local[ip];
+            }
         }
     }
-    return cnt;
-}
 
-
-# produces verbose output to std-out
-function verbose_output_summary()
-{
-    local cnt = find_link_local(T);
-    print fmt("Seen: %d devices that could be link local", cnt);
+    return all_link_local;
 }

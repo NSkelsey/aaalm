@@ -48,20 +48,34 @@ function log_routers(t: table[string] of TrackedRouter)
 event zeek_done()
 {
     local all_ips: set[addr];
+    local all_subnets_table: table[subnet] of TrackedSubnet;
 
     for (ip in all_src_ips) {
         add all_ips[ip];
     }
 
     local all_subnets_vec = infer_subnets(all_ips);
-    local all_subnets_table: table[subnet] of TrackedSubnet;
-
     for (i in all_subnets_vec) {
         local net = all_subnets_vec[i];
         local tracked_net: TrackedSubnet = [
             $net=net, $link_local=F, $num_devices=0
         ];
         all_subnets_table[net] = tracked_net;
+    }
+
+    local all_link_local_ips = find_link_local();
+
+    for (ip in all_src_ips) {
+        local t_ip = all_src_ips[ip];
+
+        local vs: vector of subnet = matching_subnets(ip/32, all_subnets_table);
+
+        local tr = all_subnets_table[vs[0]];
+        if (ip in all_link_local_ips) {
+            tr$link_local = T;
+        }
+
+        t_ip$possible_subnet = tr$net;
     }
 
     local mac_to_router = find_routers();
@@ -81,14 +95,6 @@ event zeek_done()
 
             Log::write(LOG_NET_ROUT, net_route);
         }
-    }
-
-    local all_link_local_ips = find_link_local();
-
-    for (ip in all_link_local_ips) {
-        local vs: vector of subnet = matching_subnets(ip/32, all_subnets_table);
-        local tr = all_subnets_table[vs[0]];
-        tr$link_local = T;
     }
 
     log_routers(mac_to_router);

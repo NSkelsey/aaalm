@@ -21,9 +21,6 @@ When the package is listed in the zeek package repository you will be able to us
 > zkg install aaalm
 ```
 
-For now simply clone this repository.
-
-
 ## Usage
 
 Run zeek with the following command with a packet capture file with lots of inter device communication.
@@ -76,6 +73,10 @@ Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
 By using observed vlan tags as a key - if the traffic contains them - it's simple to segment groups of IP addresses into their respective subnets.
 
 For each new vlan observed, any tagged traffic with a new `ip_src` address is recorded inside of the vlan's bucket.
+
+For more precise subnet grouping, the script in `merge/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings.
+TODO
+
 
 #### TODO Identifying routers
 

@@ -184,11 +184,9 @@ def pick_best_merges(stat_tree, clean_tree, num):
   all_probs = [] # tuple of (value, [index_path_down_trees])
 
   flattened = traverse(stat_tree, [])
-
   flattened = sorted(flattened, key=lambda x:x[0], reverse=True)
 
   to_merge = flattened[:num]
-
   to_merge_from_bottom = sorted(to_merge, cmp=lambda x,y:cmp(len(x[1]),len(y[1])), reverse=True)
 
   for v, lst in to_merge_from_bottom:
@@ -206,6 +204,17 @@ def pick_best_merges(stat_tree, clean_tree, num):
     ref[k] = flat
 
   return clean_tree
+
+import csv
+def read_tsv(fname, clean_tree):
+    # read devices.log
+
+    # for each line
+    #    look inside of clean for containing subnet
+    #    output line with \t possible_subnet updated
+
+    # Read subnet.log
+    # write new subnets
 
 
 if __name__ == "__main__":
