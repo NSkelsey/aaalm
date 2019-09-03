@@ -1,42 +1,61 @@
 function compileTemplate(subnets, routers, net_routes, grid) {
   let w = grid.width, h = grid.height;
 
-  let routeableNodes = [
-      {type: "N", x: 190, y: 80 },
-      {type: "N", x: 70, y: 70 },
-      {type: "N", x: 100, y: 170 }
-  ];
 
-  let obstacles = [
-      {name: "10.0.0", x: 0, y: 0, w: 0, h: 0},
-      {name: "10.0.0", x: 0, y: 100, w: 10, h: 10}
-  ];
+  let xOff = x=> x*grid.x_offset+25;
+  let yOff = y=> y*grid.y_offset+25;
 
-  let nets = [
-      {name: "N1", target: "N2"},
-      {name: "N2", target: "N3"},
-      {name: "N3", target: "N1"}
-  ];
+  let routeableNodes = [];
 
-  let placeTargets = "\n";
+  routers.forEach((d,i)=>{
+    let o = {
+      name: "R"+(i+1),
+      x: xOff(d.x),
+      y: yOff(d.y)
+    };
+    routeableNodes.push(o);
+  });
 
-  routeableNodes.forEach((d,i)=> {
-    placeTargets += `(place ${d.type+(i+1)} ${d.x} ${d.y} front 0)
+  let subnetConnectors = [];
+
+  subnets.forEach((d,i)=>{
+    let o = {
+      name: "S"+(i+1),
+      x: d.fit.x + grid.x_offset,
+      y: d.fit.y
+    };
+    d.name = o.name;
+    subnetConnectors.push(o);
+  })
+
+  subnetCString = "\n";
+  subnetConnectors.forEach((d,i)=> {
+    subnetCString += `(place ${d.name} ${d.x} ${d.y} front 0)
 `;
   });
-  console.log(placeTargets);
 
-  let netString = ""
-  nets.forEach(o => {
+
+  let placeTargets = "\n";
+  routeableNodes.forEach((d,i)=> {
+    placeTargets += `(place ${d.name} ${d.x} ${d.y} front 0)
+`;
+  });
+
+
+  let netString = "";
+  net_routes.forEach(o => {
+      // TODO convert {o.fin} into a list
       let b = `
-          (net RP${o.name}
-            (pins ${o.name}-2 ${o.target}-1)
+          (net ${o.name}
+            (pins ${o.start}-2 ${o.fin}-1)
           )`;
 
       netString += b;
   });
 
-  let netNames = nets.map(d=>`RP${d.name}`).join(" ");
+  let netNames = net_routes.map(d=>d.name).join(" ");
+  console.log(netNames);
+  console.log(netString);
 
   const compiled_template = `
 (pcb /place/holder
@@ -56,20 +75,20 @@ function compileTemplate(subnets, routers, net_routes, grid) {
   )
   (placement
     (component NODE
-        ${placeTargets}
+${placeTargets}
     )
     (component SUBNET
       (place S1 0 0 front 0)
-      (place S2 0 ${h/2} front 0)
+${subnetCString}
     )
   )
   (library
     (image SUBNET
-      (pin RectHuge 1 0 0)
+      (pin Round[A] 1 0 0)
     )
     (image NODE
-      (pin Rect[T] 1 -12 12)
-      (pin Rect[T] 2 12 -12)
+      (pin Rect[T] 1 -12 -12)
+      (pin Rect[T] 2 12 12)
     )
     (padstack Round[A]
       (shape (circle F.Cu 10))
@@ -101,5 +120,6 @@ ${netString}
   )
 )
 `;
+    console.log(compiled_template);
     return compiled_template;
 }

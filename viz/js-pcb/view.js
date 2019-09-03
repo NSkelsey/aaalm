@@ -18,7 +18,7 @@ var js_pcb = js_pcb || {};
 		let svg = d3.select("svg#map");
 		
         let pcb = svg.append("g")
-			.attr("transform", `translate(-20,-325)`)
+            .attr("transform", "rotate(180) translate(30,-720) scale(-1, 1)")
 			.attr("stroke-linecap", "round")
 			.attr("stroke-linejoin", "round")
 			.attr("stroke-width", "0")

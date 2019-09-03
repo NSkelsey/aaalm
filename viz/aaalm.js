@@ -272,10 +272,11 @@ function buildMap(valueMap) {
   let subnets = valueMap.get("subnet");
 
   let sn_map = new Map();
-  subnets.forEach(sn=> {
+  subnets.forEach((sn, i)=> {
     sn.devices = [];
     sn.ip = ip2int(sn.net.split('/')[0]);
     sn_map.set(sn.net, sn);
+    sn.name = "S"+(i+1)
   });
 
   subnets.sort((a,b) => a.ip - b.ip);
@@ -349,11 +350,8 @@ function buildMap(valueMap) {
     subnet.path = line(makePath(subnet.devices));
   });
 
-  //subnets = subnets.filter(d => d.devices.length);
-
   let packer = new Packer(grid.width, grid.height);
   subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
-
 
   let packable_elems = [interface_box].concat(subnets);
   let success = packer.fit(packable_elems);
@@ -398,6 +396,8 @@ function buildMap(valueMap) {
 
   let routerMap = new Map();
   routers.forEach((d, i) => {
+      d.name = "R"+(i+1);
+
       routerMap.set(d.mac, d);
       if (i < 2) {
         d.x = 4;
@@ -410,9 +410,13 @@ function buildMap(valueMap) {
 
   let net_routes = valueMap.get("net_route");
 
-  net_routes.forEach(d => {
+  net_routes.forEach((d,i) => {
     r = routerMap.get(d.router_mac);
     s = sn_map.get(d.net);
+
+    d.name = `RP${i+1}`;
+    d.start = r.name;
+    d.fin = s.name;
 
     console.log(d, r, s);
     d.x1 = r.x;
@@ -421,7 +425,7 @@ function buildMap(valueMap) {
     d.y2 = s.fit.y / grid.y_offset;
   })
 
-  net_routes = net_routes.concat(subnets.map(d => {
+  /*net_routes = net_routes.concat(subnets.map(d => {
     if (d.link_local == "T") {
         return {
           x1: 0,
@@ -431,7 +435,7 @@ function buildMap(valueMap) {
         };
     }
     return -1;
-  }).filter(d=>d != -1 ));
+  }).filter(d=>d != -1 ));*/
 
   const connections = svg.selectAll("path.tracepath")
     .data(net_routes).join("path")
