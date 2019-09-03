@@ -1,4 +1,5 @@
 let files = [];
+let worker = null;
 
 let chart_sizes = [{w: 1112, h: 645}, {w: 1400, h: 1112}, {w: 4451, h: 3148}];
 let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
@@ -225,6 +226,45 @@ function deleteForm() {
   let element = document.getElementById("wizard");
   element.parentNode.removeChild(element);
 }
+
+
+function layoutPCBPaths(subnets, routers, net_routes, grid) {
+    let pcb_args = {
+        border_gap: 55, // TODO
+        timeout: 600,
+        vias_cost: 0,
+        samples: 1, // max 32
+        grid_resolution: 1, // max 4
+        distance_metric: 0, // max 4
+        quantization: 1, // max 64
+        flood_range: 1, // max 5
+        x_range: 1, // max 5
+        y_range: 1 // max 5
+    };
+    let a = pcb_args;
+
+    //run pcb solver web worker thread, register output listner
+    if (worker !== null) worker.terminate();
+    worker = new Worker('js-pcb/worker.js');
+    worker.addEventListener('message', function(event)
+    {
+        if (event.data.length)
+        {
+            //view the pcb output
+            console.log("Calling view_pcb", event.data);
+            js_pcb.view_pcb(event.data, 1, 1);
+        }
+    }, false);
+
+    //post to solver thread
+    let compiled_template = compileTemplate(subnets, routers, net_routes, grid);
+    worker.postMessage([js_pcb.dsn2pcb(compiled_template, a.border_gap),
+                        a.timeout, 1, a.samples, a.vias_cost,
+                        a.grid_resolution, a.quantization, a.distance_metric,
+                        a.flood_range, a.x_range, a.y_range]);
+
+}
+
 
 function buildMap(valueMap) {
   promises = [];
@@ -501,5 +541,9 @@ function buildMap(valueMap) {
     .attr("fill", "none")
     .attr("d", "M-12,-12L-4,-4")
 
+
+
   deleteForm();
+
+  layoutPCBPaths(subnets, routers, net_routes, grid);
 }

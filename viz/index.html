@@ -104,8 +104,12 @@ svg#map {
     color: red;
 }
 
-</style>
-<script src="d3.v5.js"></script>
+  </style>
+  <script src="d3.v5.js"></script>
+  <script type="text/javascript" src="js-pcb/mymath.js"></script>
+  <script type="text/javascript" src="js-pcb/view.js"></script>
+  <script type="text/javascript" src="js-pcb/dsn2pcb.js"></script>
+  <script type="text/javascript" src="js-pcb/inter-map.js"></script>
 </head>
 <body>
     <page id="resize-page" size="A4" layout="portrait" class="flex-box">
@@ -143,7 +147,7 @@ svg#map {
         <p id="error-msg"></p>
     </div>
     <div id="viz">
-        <svg id="map">
+        <svg id="map" width=1112 height=650>
             <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4" transform="scale(4)">
             <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2"
                   style="stroke:green; stroke-opacity:0.3; stroke-width:1; stroke-dasharray:4 1" />
