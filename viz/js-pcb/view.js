@@ -15,10 +15,15 @@ var js_pcb = js_pcb || {};
 			.y(function(d) { return d[1]; });
 
 		//create/replace SVG element
-		let svg = d3.select("svg#map");
+        let board = d3.select("svg#map #route-holder");
+
+        if (board) board.remove();
+
+		board = d3.select("svg#map").append("g")
+          .attr("id", "route-holder")
+          .attr("transform", "")
 		
-        let pcb = svg.append("g")
-            .attr("transform", "rotate(180) translate(30,-720) scale(-1, 1)")
+        let pcb = board.append("g")
 			.attr("stroke-linecap", "round")
 			.attr("stroke-linejoin", "round")
 			.attr("stroke-width", "0")
@@ -81,7 +86,7 @@ var js_pcb = js_pcb || {};
 						.attr("cx", terminal_x)
 						.attr("cy", terminal_y)
 						.attr("r", terminal_radius)
-						.attr("fill", "purple");
+						.attr("fill", "#999");
 				}
 				else if (terminal_shape.length === 2)
 				{
@@ -93,7 +98,8 @@ var js_pcb = js_pcb || {};
 				else
 				{
 					layers[layers.length-1].append("path")
-						.attr("fill", "purple")
+						.attr("fill", "#000")
+                        .attr("opacity", 0.5)
 						.attr("d", path_func(terminal_shape.map(
 							function(e){ return [e[0] + terminal_x, e[1] + terminal_y]; })));
 				}

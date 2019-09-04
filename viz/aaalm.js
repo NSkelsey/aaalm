@@ -4,6 +4,8 @@ let worker = null;
 let chart_sizes = [{w: 1112, h: 645}, {w: 1400, h: 1112}, {w: 4451, h: 3148}];
 let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 let size = 0;
+let earliestDate = new Date();
+let title = "";
 
 const grid = {
     width: -1,
@@ -21,7 +23,6 @@ const grid = {
 function setGridSize(idx) {
     grid.width = chart_sizes[idx].w;
     grid.height = chart_sizes[idx].h;
-
     let e = document.getElementById("resize-page");
     e.style.width = paper_sizes[idx].w;
     e.style.height = paper_sizes[idx].h;
@@ -52,6 +53,9 @@ function handleFileSelect(evt) {
         f.size, ' bytes, last modified: ',
         f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
         '</li>');
+        if (f.lastModifiedDate < earliestDate) {
+            earliestDate = f.lastModifiedDate;
+        }
     }
     document.getElementById(id).innerHTML = output.join('');
 }
@@ -78,6 +82,8 @@ function processFiles(evt) {
         errorMessage("Not enough or no files selected");
         return;
     }
+
+    title = document.getElementById("net-title").value;
 
     var e = document.getElementById("size-pick");
     setGridSize(e.value);
@@ -109,13 +115,14 @@ function processFiles(evt) {
         promises.push(p);
     }
     Promise.all(promises).then(values => {
-        const requiredFiles = new Set(["device.log", "subnet.log", "net_route.log", "router.log"]);
+        const requiredFiles = new Set(["device", "subnet", "net_route", "router"]);
         let B = new Set();
         let map = new Map();
 
         values.forEach(d => {
-            B.add(d.name)
-            map.set(d.name.split('.')[0], d.tsv);
+            let non_exten_name = d.name.split('.')[0]
+            B.add(non_exten_name);
+            map.set(non_exten_name, d.tsv);
         });
 
         let C = symmetricDifference(requiredFiles, B);
@@ -132,12 +139,12 @@ function processFiles(evt) {
 
 function setupHTML(metadata) {
   d3.select("#title > h2")
-    .text(`${metadata.name} LAN map`);
+    .text(`${metadata.title} LAN map`);
 
   d3.select("#title > i")
-    .text(`on ${metadata.date} from ${metadata.iface}`);
+    .text(`on ${metadata.date} by ${metadata.host}`);
 
-  let now = new Date().toLocaleString();
+  let now = new Date().toLocaleDateString();
   d3.select("#creationDate")
     .text(`on ${now}`);
 
@@ -150,7 +157,7 @@ function setupHTML(metadata) {
   d3.select("#totVLAN")
     .text(metadata.num_vlans);
 
-  d3.select("#credit").style("display", "block");
+  d3.select("#credit").style("display", "inline-block");
   d3.select("#legend").style("display", "flex");
 }
 
@@ -231,15 +238,15 @@ function deleteForm() {
 function layoutPCBPaths(subnets, routers, net_routes, grid) {
     let pcb_args = {
         border_gap: 55, // TODO
-        timeout: 600,
+        timeout: 1000, // Unused by lib
         vias_cost: 0,
-        samples: 1, // max 32
+        samples: 8, // max 32
         grid_resolution: 1, // max 4
         distance_metric: 0, // max 4
         quantization: 1, // max 64
-        flood_range: 2, // max 5
-        x_range: 3, // max 5
-        y_range: 3 // max 5
+        flood_range: 1, // max 5
+        x_range: 1, // max 5
+        y_range: 1 // max 5
     };
     let a = pcb_args;
 
@@ -302,9 +309,9 @@ function buildMap(valueMap) {
   let c_vlans = new Set(subnets.map(d=>d.vlan));
 
   let metadata = {
-    name: "",
-    date: "20/08/2019",
-    iface: "mora.local",
+    title: title,
+    date: earliestDate.toLocaleDateString(),
+    host: window.location.hostname,
     num_dev: devices.length,
     num_subnets: subnets.length,
     num_vlans: c_vlans.size
@@ -325,7 +332,7 @@ function buildMap(valueMap) {
     .y(d=>d[1]*grid.y_offset);
 
     //const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
-    const colors = d3.schemePastel1;
+    const colors = d3.schemeCategory10;
 
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
@@ -384,10 +391,9 @@ function buildMap(valueMap) {
     .attr("transform", `translate(${-grid.x_offset/2}, ${-grid.y_offset/2})`)
     .attr("width", d => d.w - grid.x_offset)
     .attr("height", d => d.h - grid.y_offset)
-    .attr("rx", 4)
-    .attr("fill", d => d.color)
-    //.attr("fill-opacity", 0.2);
-
+    .attr("stroke", d => d.color)
+    .attr("stroke-width", 1.0)
+    .attr("fill", "none")
 
   let routers = valueMap.get("router");
 
@@ -460,18 +466,17 @@ function buildMap(valueMap) {
     .attr("text-anchor", "start")
     .text(d=> { v = d.mac.split(":"); return `${v[0]}::${v[5]}` });
 
-  router.append("circle")
-    .attr("r", grid.r*2)
-    .attr("fill", "white")
-    .attr("stroke", "black");
+  router.filter(d=> {
+      return d.obj_type != "EtherIPv4::GATEWAY";
+  })
+    .append("use")
+    .attr("href", "#router-inline")
+    .attr("transform", "translate(-7, -7)");
 
-  router.append("path")
-    .attr("stroke", "#777777")
-    .attr("stroke-width", "2px")
-    .attr("stroke-opacity", 0.7)
-    .attr("stroke-linejoin", "round")
-    .attr("fill", "none")
-    .attr("d", "M12,12L4,4")
+  router.filter(d=> d.obj_type == "EtherIPv4::GATEWAY")
+    .append("use")
+    .attr("href", "#gateway-inline")
+    .attr("transform", "translate(-7, -7)");
 
   const subnet_label = subnet_group.append("g")
     .attr("class", "label")
@@ -547,7 +552,10 @@ function buildMap(valueMap) {
     .attr("fill", "none")
     .attr("d", "M-12,-12L-4,-4")
 
-
+  center_dot.append("text")
+    .attr("x", -40)
+    .attr("y", -14)
+    .text("Link Layer")
 
   deleteForm();
 

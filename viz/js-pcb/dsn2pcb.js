@@ -173,12 +173,12 @@ var js_pcb = js_pcb || {};
 
 		let tree = read_tree(stream);
 		let structure_root = search_tree(tree, "structure");
-		const units = 1.0;
+		const units = 10;
 		let num_layers = 0;
-		let minx = 1000.0;
-		let miny = 1000.0;
-		let maxx = -1000.0;
-		let maxy = -1000.0;
+		let minx = 10000.0;
+		let miny = 10000.0;
+		let maxx = -10000.0;
+		let maxy = -10000.0;
 		let default_rule = [0.25, 0.25, []];
 		let default_via = "Via[0-1]_600:400_um";
 		for (let structure_node of structure_root[1])
