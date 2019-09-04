@@ -1,7 +1,7 @@
 let files = [];
 let worker = null;
 
-let chart_sizes = [{w: 1112, h: 645}, {w: 1400, h: 1112}, {w: 4451, h: 3148}];
+let chart_sizes = [{w: 1112, h: 645, x_c:940}, {w: 1400, h: 1112, x_c:1407}, {w: 4451, h: 3148, x_c:3443}];
 let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 let size = 0;
 let earliestDate = new Date();
@@ -10,6 +10,7 @@ let title = "";
 const grid = {
     width: -1,
     height: -1,
+    x_correct: -1,
     // Per node spacing
     x_offset: 50,
     y_offset: 40,
@@ -23,6 +24,7 @@ const grid = {
 function setGridSize(idx) {
     grid.width = chart_sizes[idx].w;
     grid.height = chart_sizes[idx].h;
+    grid.x_correct = chart_sizes[idx].x_c;
     let e = document.getElementById("resize-page");
     e.style.width = paper_sizes[idx].w;
     e.style.height = paper_sizes[idx].h;
@@ -244,7 +246,7 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
         grid_resolution: 1, // max 4
         distance_metric: 0, // max 4
         quantization: 1, // max 64
-        flood_range: 1, // max 5
+        flood_range: 2, // max 5
         x_range: 1, // max 5
         y_range: 1 // max 5
     };
@@ -259,7 +261,7 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
         {
             //view the pcb output
             console.log("Calling view_pcb", event.data);
-            js_pcb.view_pcb(event.data, 1, 1);
+            js_pcb.view_pcb(event.data, 1, grid.x_correct);
         }
     }, false);
 
@@ -462,9 +464,11 @@ function buildMap(valueMap) {
           `translate(${d.x*grid.x_offset}, ${d.y*grid.y_offset})`)
 
   router.append("text")
-    .attr("transform", "translate(-23, -12)")
+    .attr("transform", "translate(-20, -12)")
     .attr("text-anchor", "start")
-    .text(d=> { v = d.mac.split(":"); return `${v[0]}::${v[5]}` });
+    .text(d=> { v = d.mac.split(":"); return `${v[0]}::${v[5]}` })
+  .clone(true).lower()
+    .attr("stroke", "white");
 
   router.filter(d=> {
       return d.obj_type != "EtherIPv4::GATEWAY";
@@ -476,7 +480,7 @@ function buildMap(valueMap) {
   router.filter(d=> d.obj_type == "EtherIPv4::GATEWAY")
     .append("use")
     .attr("href", "#gateway-inline")
-    .attr("transform", "translate(-7, -7)");
+    .attr("transform", "translate(-9, -5)");
 
   const subnet_label = subnet_group.append("g")
     .attr("class", "label")

@@ -173,7 +173,7 @@ var js_pcb = js_pcb || {};
 
 		let tree = read_tree(stream);
 		let structure_root = search_tree(tree, "structure");
-		const units = 10;
+		const units = 5;
 		let num_layers = 0;
 		let minx = 10000.0;
 		let miny = 10000.0;

@@ -3,7 +3,7 @@
 var js_pcb = js_pcb || {};
 (function()
 {
-	function view_pcb(pcb_data, scale, margin)
+	function view_pcb(pcb_data, scale, x_correct)
 	{
 		//Width and height etc
 		let width, height, depth;
@@ -21,8 +21,8 @@ var js_pcb = js_pcb || {};
 
 		board = d3.select("svg#map").append("g")
           .attr("id", "route-holder")
-          .attr("transform", "")
-		
+          .attr("transform", `translate(-250, ${x_correct}) scale(5, -5)`)
+
         let pcb = board.append("g")
 			.attr("stroke-linecap", "round")
 			.attr("stroke-linejoin", "round")
@@ -31,12 +31,12 @@ var js_pcb = js_pcb || {};
 
 		//create layers, last layer is the terminals layer
 		let layers = [];
-		let layer_colors = ["red", "green", "blue", "yellow", "cyan", "magenta"];
+		let layer_colors = ["salmon", "lightgreen", "lightblue", "yellow", "cyan", "magenta"];
 		for (let layer = 0; layer < depth; ++layer)
 		{
 			layers.push(pcb.append("g")
 				.attr("stroke", layer_colors[layer % layer_colors.length])
-				.attr("stroke-opacity", 0.75));
+				.attr("stroke-opacity", 1));
 		}
 		layers.push(pcb.append("g")
 			.attr("stroke", "lightgreen"));
@@ -99,7 +99,7 @@ var js_pcb = js_pcb || {};
 				{
 					layers[layers.length-1].append("path")
 						.attr("fill", "#000")
-                        .attr("opacity", 0.5)
+                        .attr("opacity", 0.25)
 						.attr("d", path_func(terminal_shape.map(
 							function(e){ return [e[0] + terminal_x, e[1] + terminal_y]; })));
 				}

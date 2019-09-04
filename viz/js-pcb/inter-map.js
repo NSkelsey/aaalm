@@ -95,7 +95,6 @@ function compileTemplate(subnets, routers, net_routes, grid) {
 ${placeTargets}
     )
     (component SUBNET
-      (place S1 0 0 front 0)
 ${subnetCString}
     )
   )
@@ -110,9 +109,7 @@ ${subnetCString}
     (image NODE
       (pin Rect[T] 1 -12 -12)
       (pin Rect[T] 2 12 12)
-      (pin Rect[T] 3 -12 12)
-      (pin Rect[T] 4 12 -12)
-      (pin Rect[T] 5 2 2)
+      (pin RectBlocker 3 0 0)
     )
     (padstack Round[A]
       (shape (circle A.Cu 10))
@@ -121,11 +118,18 @@ ${subnetCString}
     )
     (padstack RectHuge
       (shape (rect A.Cu ${grid.x_offset/4 - 5} ${-grid.y_offset/4} ${grid.x_offset*1} ${grid.y_offset/4}))
+      (shape (rect B.Cu ${grid.x_offset/4 - 5} ${-grid.y_offset/4} ${grid.x_offset*1} ${grid.y_offset/4}))
+      (shape (rect C.Cu ${grid.x_offset/4 - 5} ${-grid.y_offset/4} ${grid.x_offset*1} ${grid.y_offset/4}))
     )
     (padstack Rect[T]
       (shape (rect A.Cu -4 -4 4 4))
       (shape (rect B.Cu -4 -4 4 4))
       (shape (rect C.Cu -4 -4 4 4))
+    )
+    (padstack RectBlocker
+      (shape (rect A.Cu -8 -8 8 8))
+      (shape (rect B.Cu -8 -8 8 8))
+      (shape (rect C.Cu -8 -8 8 8))
     )
     (padstack "Via"
       (shape (circle A.Cu 8))
