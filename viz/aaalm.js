@@ -237,9 +237,9 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
         grid_resolution: 1, // max 4
         distance_metric: 0, // max 4
         quantization: 1, // max 64
-        flood_range: 1, // max 5
-        x_range: 1, // max 5
-        y_range: 1 // max 5
+        flood_range: 2, // max 5
+        x_range: 3, // max 5
+        y_range: 3 // max 5
     };
     let a = pcb_args;
 
@@ -330,9 +330,6 @@ function buildMap(valueMap) {
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
 
-    // j is a value 1 through 4 (left, up, right, down)
-    subnet.orientation = j;
-
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
       let o = {color: colors[j%9]};
@@ -345,7 +342,7 @@ function buildMap(valueMap) {
     subnet.w = (8+1) * grid.x_offset;
     subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
 
-    console.log(subnet.net, subnet.w, subnet.h);
+    subnet.name = "S"+(j+1)
 
     subnet.path = line(makePath(subnet.devices));
   });
@@ -398,6 +395,9 @@ function buildMap(valueMap) {
   routers.forEach((d, i) => {
       d.name = "R"+(i+1);
 
+      d.route_path_name = `RP${i+0}`;
+      d.routes = [];
+
       routerMap.set(d.mac, d);
       if (i < 2) {
         d.x = 4;
@@ -414,15 +414,15 @@ function buildMap(valueMap) {
     r = routerMap.get(d.router_mac);
     s = sn_map.get(d.net);
 
-    d.name = `RP${i+1}`;
-    d.start = r.name;
-    d.fin = s.name;
+    //d.start = r.name;
+    d.target = s.name;
 
-    console.log(d, r, s);
     d.x1 = r.x;
     d.y1 = r.y;
     d.x2 = s.fit.x / grid.x_offset;
     d.y2 = s.fit.y / grid.y_offset;
+
+    r.routes.push(d);
   })
 
   /*net_routes = net_routes.concat(subnets.map(d => {
@@ -437,6 +437,7 @@ function buildMap(valueMap) {
     return -1;
   }).filter(d=>d != -1 ));*/
 
+    /*
   const connections = svg.selectAll("path.tracepath")
     .data(net_routes).join("path")
     .attr("stroke", "#777777")
@@ -446,6 +447,7 @@ function buildMap(valueMap) {
     .attr("class", "tracepath")
     .attr("fill", "none")
     .attr("d", d=>line([[d.x1, d.y1],[d.x2,d.y2]]));
+    */
 
   let router = svg.selectAll("g.router")
     .data(routers).join("g")

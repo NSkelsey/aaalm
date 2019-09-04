@@ -81,7 +81,7 @@ var js_pcb = js_pcb || {};
 						.attr("cx", terminal_x)
 						.attr("cy", terminal_y)
 						.attr("r", terminal_radius)
-						.attr("fill", "pink");
+						.attr("fill", "purple");
 				}
 				else if (terminal_shape.length === 2)
 				{

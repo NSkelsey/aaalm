@@ -1,9 +1,23 @@
 function compileTemplate(subnets, routers, net_routes, grid) {
+  // TODO handle case where routes are empty
   let w = grid.width, h = grid.height;
 
 
   let xOff = x=> x*grid.x_offset+25;
   let yOff = y=> y*grid.y_offset+25;
+
+
+  let g = routers.map(d=>`${d.name}-1`).join(" ")
+  subnets.forEach(s=> {
+    if (s.link_local == "T") {
+      g = `${g} ${s.name}-1`;
+    }
+  });
+  let netString = `
+    (net LCNP
+      (pins LCN-1 ${g})
+    )`;
+  let netNames = "LCNP";
 
   let routeableNodes = [];
 
@@ -14,54 +28,54 @@ function compileTemplate(subnets, routers, net_routes, grid) {
       y: yOff(d.y)
     };
     routeableNodes.push(o);
+
+    let paths = d.routes.map(p=>`${p.target}-1`).join(" ");
+
+    netNames += ` ${d.route_path_name}`;
+    let b = `
+    (net ${d.route_path_name}
+      (pins ${d.name}-2 ${paths})
+    )`;
+
+    netString += b;
   });
+
+  console.log(netNames);
+  console.log(netString);
+
 
   let subnetConnectors = [];
 
   subnets.forEach((d,i)=>{
     let o = {
-      name: "S"+(i+1),
-      x: d.fit.x + grid.x_offset,
-      y: d.fit.y
+      name: d.name,
+      x: d.fit.x + grid.x_offset/2,
+      y: d.fit.y + grid.y_offset/2
     };
-    d.name = o.name;
     subnetConnectors.push(o);
   })
 
-  subnetCString = "\n";
+  subnetCString = "";
   subnetConnectors.forEach((d,i)=> {
-    subnetCString += `(place ${d.name} ${d.x} ${d.y} front 0)
+    subnetCString += `
+        (place ${d.name} ${d.x} ${d.y} front 0)
 `;
   });
 
 
-  let placeTargets = "\n";
+  let placeTargets = "";
   routeableNodes.forEach((d,i)=> {
-    placeTargets += `(place ${d.name} ${d.x} ${d.y} front 0)
+    placeTargets += `
+        (place ${d.name} ${d.x} ${d.y} front 0)
 `;
   });
-
-
-  let netString = "";
-  net_routes.forEach(o => {
-      // TODO convert {o.fin} into a list
-      let b = `
-          (net ${o.name}
-            (pins ${o.start}-2 ${o.fin}-1)
-          )`;
-
-      netString += b;
-  });
-
-  let netNames = net_routes.map(d=>d.name).join(" ");
-  console.log(netNames);
-  console.log(netString);
 
   const compiled_template = `
 (pcb /place/holder
   (structure
-    (layer F.Cu)
-    (layer D.Cu)
+    (layer A.Cu)
+    (layer B.Cu)
+    (layer C.Cu)
     (boundary
       (path pcb 0 ${w} ${h} 0 ${h} 0 0 ${w} 0)
     )
@@ -74,6 +88,9 @@ function compileTemplate(subnets, routers, net_routes, grid) {
     )
   )
   (placement
+    (component OBSDEV
+      (place LCN ${grid.x_offset/2} ${grid.y_offset/2} front 0)
+    )
     (component NODE
 ${placeTargets}
     )
@@ -83,27 +100,36 @@ ${subnetCString}
     )
   )
   (library
+    (image OBSDEV
+      (pin Round[A] 1 0 0)
+    )
     (image SUBNET
       (pin Round[A] 1 0 0)
+      (pin RectHuge 2 0 0)
     )
     (image NODE
       (pin Rect[T] 1 -12 -12)
       (pin Rect[T] 2 12 12)
     )
     (padstack Round[A]
-      (shape (circle F.Cu 10))
+      (shape (circle A.Cu 10))
       (shape (circle B.Cu 10))
+      (shape (circle C.Cu 10))
     )
     (padstack RectHuge
-      (shape (rect F.Cu 0 0 ${grid.x_offset} ${grid.y_offset}))
+      (shape (rect A.Cu ${grid.x_offset/4} ${-grid.y_offset/2} ${grid.x_offset*8} ${grid.y_offset/2}))
+      (shape (rect B.Cu ${grid.x_offset/4} ${-grid.y_offset/2} ${grid.x_offset*8} ${grid.y_offset/2}))
+      (shape (rect C.Cu ${grid.x_offset/4} ${-grid.y_offset/2} ${grid.x_offset*8} ${grid.y_offset/2}))
     )
     (padstack Rect[T]
-      (shape (rect F.Cu -4 -4 4 4))
+      (shape (rect A.Cu -4 -4 4 4))
       (shape (rect B.Cu -4 -4 4 4))
+      (shape (rect C.Cu -4 -4 4 4))
     )
     (padstack "Via"
-      (shape (circle F.Cu 8))
+      (shape (circle A.Cu 8))
       (shape (circle B.Cu 8))
+      (shape (circle C.Cu 8))
     )
   )
   (network
