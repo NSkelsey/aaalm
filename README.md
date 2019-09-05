@@ -2,7 +2,7 @@
 
 aaalm is a zeek package that passively infers the structure of an IPv4 network over Ethernet from communication among hosts.
 
-It will discover gateways, routers, and associate devices to subnets and vlans based on hueristics from analysis of raw packets and connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
+It will discover gateways, routers, and associate devices to subnets and gateways based on hueristics from analysis of raw packets and connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
 
 The tool inside of `/viz` can then interpret this information to generate a map suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
 
@@ -15,11 +15,14 @@ Here's an example.
 
 Install [Zeek](https://docs.zeek.org/en/stable/quickstart/) and its package manager [zkg](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html).
 
-When the package is listed in the zeek package repository you will be able to use:
+Use the `zkg` to download and install the pacakge.
 
 ```zsh
 > zkg install aaalm
 ```
+
+Otherwise clone this repository.
+
 
 ## Usage
 
@@ -72,16 +75,12 @@ Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
 #### Placing devices in subnets
 By using observed vlan tags as a key - if the traffic contains them - it's simple to segment groups of IP addresses into their respective subnets.
 
-For each new vlan observed, any tagged traffic with a new `ip_src` address is recorded inside of the vlan's bucket.
+For more precise subnet grouping, the script in `merge/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings. The script will modify `*.log` the files to improve the quality of subnet groupings if the default behavoir is insufficient.
 
-For more precise subnet grouping, the script in `merge/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings.
-TODO
+#### Identifying routers
 
+Router identification works by tracking unique MACs inside of the `l2_header` and storing the set of `ip_src` addresses, then simply checking if these MACs are originating traffic with multiple source IP addresses.
 
-#### TODO Identifying routers
+#### Identifying gateways
 
-Router identification works by tracking unique MACs inside of the `l2_header` and storing the set of `ip_src` addresses.
-
-#### TODO Identifying gateways
-
-Gateway identification works similiarly but, handles the special case where emitted traffic seems destined for `0.0.0.0/32`
+Gateway identification works similiarly but, denotes the special case where emitted traffic seems originates from a public IP address.
