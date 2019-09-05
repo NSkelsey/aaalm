@@ -6,9 +6,7 @@ It will discover gateways, routers, and associate devices to subnets and gateway
 
 The tool inside of `/viz` can then interpret this information to generate a diagram suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
 
-Here are some examples.
-
-What a VPS on Amazon can see by running traceroute.
+Here are some examples:
 
 ![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
 
