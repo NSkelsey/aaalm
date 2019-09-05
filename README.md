@@ -10,20 +10,23 @@ Here are some examples:
 
 ![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
 
-The same diagram in A4.
+The same diagram in A4
 
 ![printed a4 diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/white-boarded-c.jpg)
 
-My network at home.
+My network at home
 
 ![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
+During CTFs team's must attack and defend network services. This is what the network at [DEFCON 27](https://www.defcon.org/html/defcon-27/dc-27-ctf.html) looked like to [mhackeroni](https://mhackeroni.it/):
+
+![mhack defcon](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/mhack-defcon.png)
 
 ## Installation
 
 Install [Zeek](https://docs.zeek.org/en/stable/quickstart/) and its package manager [zkg](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html).
 
-Use the `zkg` to download and install the pacakge.
+Use the `zkg` to download and install the package.
 
 ```zsh
 > zkg install aaalm
