@@ -8,12 +8,15 @@ The tool inside of `/viz` can then interpret this information to generate a diag
 
 Here are some examples.
 
+What a VPS on Amazon can see by running traceroute.
+
 ![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
 
 The same diagram in A4.
 
 ![printed a4 diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/white-boarded-c.jpg)
 
+My network at home.
 
 ![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
