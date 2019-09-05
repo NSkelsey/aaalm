@@ -4,11 +4,18 @@ aaalm is a zeek package that passively infers the structure of an IPv4 network o
 
 It will discover gateways, routers, and associate devices to subnets and gateways based on hueristics from analysis of raw packets and connections. It can even infer routing paths if the analyzed traffic contains icmp responses to a traceroute.
 
-The tool inside of `/viz` can then interpret this information to generate a map suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
+The tool inside of `/viz` can then interpret this information to generate a diagram suitable for printing on A4 paper or even bigger on A3, hence the name, the A3 Lan Mapper.
 
-Here's an example.
+Here are some examples.
 
-![nice looking network map](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
+![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
+
+The same diagram in A4.
+
+![printed a4 diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/white-boarded-c.jpg)
+
+
+![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
 
 ## Installation
