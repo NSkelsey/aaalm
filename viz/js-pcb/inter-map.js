@@ -6,14 +6,6 @@ function compileTemplate(subnets, routers, net_route_sets, grid) {
   let xOff = x=> x*grid.x_offset+25;
   let yOff = y=> y*grid.y_offset+25;
 
-
-  let g = routers.map(d=>`${d.name}-1`).join(" ")
-  subnets.forEach(s=> {
-    if (s.link_local == "T") {
-      g = `${g} ${s.name}-1`;
-    }
-  });
-
   let routeableNodes = [];
 
   routers.forEach((d,i)=>{
@@ -26,11 +18,8 @@ function compileTemplate(subnets, routers, net_route_sets, grid) {
 
   });
 
-  let netString = `
-    (net LCNP
-      (pins LCN-1 ${g})
-    )`;
-  let netNames = "LCNP";
+  let netString = ``;
+  let netNames = "";
 
   net_route_sets.forEach((set,idx)=> {
     let paths = [];

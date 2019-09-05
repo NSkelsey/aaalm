@@ -162,8 +162,8 @@ function setupHTML(metadata) {
   d3.select("#totSN")
     .text(metadata.num_subnets);
 
-  d3.select("#totVLAN")
-    .text(metadata.num_vlans);
+  d3.select("#totNets")
+    .text(metadata.num_nets);
 
   d3.select("#credit").style("display", "inline-block");
   d3.select("#legend").style("display", "flex");
@@ -205,12 +205,22 @@ function intersection(setA, setB) {
 }
 
 function merge_routes(net_routes, sn_map, routerMap) {
-  let netSets = [];
+  let link_local = new Set(["LCN-1"]);
+  routerMap.forEach(v=>link_local.add(`${v.name}-1`));
+
+  sn_map.forEach(s=> {
+    if (s.link_local == "T") {
+      link_local.add(`${s.name}-1`);
+    }
+  });
+
+  let netSets = [link_local];
+
   net_routes.forEach(d => {
     r = routerMap.get(d.router_mac);
     s = sn_map.get(d.net);
 
-    let set = new Set([r.name+"-2", s.name+"-1"]);
+    let set = new Set([`${r.name}-2`, `${s.name}-1`]);
     netSets.push(set);
   })
 
@@ -371,21 +381,11 @@ function buildMap(valueMap) {
 
   let c_vlans = new Set(subnets.map(d=>d.vlan));
 
-  let metadata = {
-    title: title,
-    date: earliestDate.toLocaleDateString(),
-    host: window.location.hostname,
-    num_dev: devices.length,
-    num_subnets: subnets.length,
-    num_vlans: c_vlans.size
-  };
-
   let interface_box = {
     w: 6 * grid.x_offset,
     h: 3 * grid.x_offset,
   };
 
-  setupHTML(metadata);
 
   let line = d3.line()
     .curve(d3.curveStep)
@@ -628,6 +628,17 @@ function buildMap(valueMap) {
     .attr("x", -40)
     .attr("y", -14)
     .text("Link Layer")
+
+  let metadata = {
+    title: title,
+    date: earliestDate.toLocaleDateString(),
+    host: window.location.hostname,
+    num_dev: devices.length,
+    num_subnets: subnets.length,
+    num_nets: net_route_sets.length
+  };
+
+  setupHTML(metadata);
 
   deleteForm();
 
