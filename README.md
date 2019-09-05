@@ -20,6 +20,9 @@ My network at home.
 
 ![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
+During CTFs teams must attack and defend network services. This is what the network at [DEFCON 27](https://www.defcon.org/html/defcon-27/dc-27-ctf.html) looked like to [mHACKeroni](https://mhackeroni.it/):
+
+![mhack defcon](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/mhack-defcon.png)
 
 ## Installation
 
@@ -83,7 +86,7 @@ Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
 ### Techniques Used
 
 #### Placing devices in subnets
-By using observed vlan tags as a key - if the traffic contains them - it's simple to segment groups of IP addresses into their respective subnets.
+By default the script uses a greedly algorithm to place addresses into `\24`.
 
 For more precise subnet grouping, the script in `merge/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings. The script will modify `*.log` the files to improve the quality of subnet groupings if the default behavoir is insufficient.
 
@@ -93,4 +96,4 @@ Router identification works by tracking unique MACs inside of the `l2_header` an
 
 #### Identifying gateways
 
-Gateway identification works similiarly but, denotes the special case where emitted traffic seems originates from a public IP address.
+Gateway identification works similiarly but captures the special case where emitted traffic seems to originate from a public IP address.
