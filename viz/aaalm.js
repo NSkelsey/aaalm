@@ -1,11 +1,5 @@
-let files = [];
-let worker = null;
-
-let chart_sizes = [{w: 1112, h: 645, x_c:940}, {w: 1400, h: 1112, x_c:1407}, {w: 4451, h: 3148, x_c:3443}];
-let paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
-let size = 0;
-let earliestDate = new Date();
-let title = "";
+const chart_sizes = [{w: 1112, h: 645, x_c:940}, {w: 1400, h: 1112, x_c:1407}, {w: 4451, h: 3148, x_c:3443}];
+const paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 
 const grid = {
     width: -1,
@@ -19,6 +13,14 @@ const grid = {
     r: 3,
     group_pad: 300
 };
+
+
+let size = 0;
+let earliestDate = new Date();
+let title = "";
+
+let files = [];
+let worker = null;
 
 
 function setGridSize(idx) {
@@ -62,9 +64,11 @@ function handleFileSelect(evt) {
     document.getElementById(id).innerHTML = output.join('');
 }
 
+
 function errorMessage(msg) {
     document.getElementById("error-msg").innerHTML = `Error: ${msg}`
 }
+
 
 function dropZeekTSVHeaders(raw_text) {
   let all_lines = raw_text.split("\n");
@@ -78,6 +82,7 @@ function dropZeekTSVHeaders(raw_text) {
 
   return all_lines.join("\n");
 }
+
 
 function processFiles(evt) {
     if (files.length != 4) {
@@ -139,6 +144,7 @@ function processFiles(evt) {
     }).then(buildMap);
 }
 
+
 function setupHTML(metadata) {
   d3.select("#title > h2")
     .text(`${metadata.title} LAN map`);
@@ -163,10 +169,12 @@ function setupHTML(metadata) {
   d3.select("#legend").style("display", "flex");
 }
 
+
 function ip2int(ip) {
     let s = ip.split('.').reduce(function(ipInt, octet) { return (ipInt<<8) + parseInt(octet, 10)}, 0) >>> 0;
     return s;
 }
+
 
 function makePath(devices) {
   let p = [{x:0, y:0}, {x:1, y:0}];
@@ -181,9 +189,66 @@ function orientToDegrees(j) {
   return j*-90;
 }
 
+
 function orientToRotation(j) {
   return "rotate("+orientToDegrees(j)+")";
 }
+
+function intersection(setA, setB) {
+  var _intersection = new Set();
+  for (var elem of setB) {
+    if (setA.has(elem)) {
+      _intersection.add(elem);
+    }
+  }
+  return _intersection;
+}
+
+function merge_routes(net_routes, sn_map, routerMap) {
+  let netSets = [];
+  net_routes.forEach(d => {
+    r = routerMap.get(d.router_mac);
+    s = sn_map.get(d.net);
+
+    let set = new Set([r.name+"-2", s.name+"-1"]);
+    netSets.push(set);
+  })
+
+  outputSets = [];
+
+  for (let i = 0; i < netSets.length; i++) {
+    workingSet = netSets[i];
+
+    let g_poses = []
+    for (let g = 0; g < outputSets.length; g++) {
+      let s = outputSets[g];
+      let o = intersection(s, workingSet);
+      if (o.size > 0) {
+          workingSet.forEach(e=>s.add(e));
+          g_poses.push(g)
+      }
+    }
+    if (g_poses.length == 0) {
+      outputSets.push(workingSet);
+    } else {
+      let f = g_poses.reduce((accum, idx)=> {
+        s = outputSets[idx];
+        s.forEach(d=>accum.add(d));
+        return accum;
+      }, new Set());
+
+      outputSets = outputSets.filter((_, i) => {
+        return g_poses.indexOf(i) == -1;
+      });
+
+      outputSets.push(f);
+    }
+    g_poses = [];
+  }
+
+  return outputSets;
+}
+
 
 function processDevices(prefix, devices, j) {
   // Compute x and y position for each device inside of its subnet
@@ -191,8 +256,6 @@ function processDevices(prefix, devices, j) {
 
   let sorted_devices = devices.map(d => {d.ip = ip2int(d.dev_src_ip); return d;})
     .sort((a,b) => a.ip - b.ip);
-
-  console.log("SORTING", sorted_devices);
 
   let ctr = 3;
 
@@ -213,7 +276,6 @@ function processDevices(prefix, devices, j) {
     if (diff > 1) {
       let s = Math.ceil(diff / 128.0);
       s = Math.min(3, s);
-      console.log(diff, s, ctr);
       ctr = ctr + s;
     }
     let pos = ctr;
@@ -222,7 +284,6 @@ function processDevices(prefix, devices, j) {
     d.pos = ctr;
     d.x = pos % base;
     d.y = Math.floor(pos / base);
-    console.log(d.dev_src_ip, d.x, d.y)
     ctr++;
     last_ip = ip;
   }
@@ -328,8 +389,6 @@ function buildMap(valueMap) {
 
   let line = d3.line()
     .curve(d3.curveStep)
-    //.x(d=>d.x*grid.x_offset)
-    //.y(d=>d.y*grid.y_offset);
     .x(d=>d[0]*grid.x_offset)
     .y(d=>d[1]*grid.y_offset);
 
@@ -416,22 +475,31 @@ function buildMap(valueMap) {
       }
   });
 
+
   let net_routes = valueMap.get("net_route");
 
+  let net_route_sets = merge_routes(net_routes, sn_map, routerMap);
+  console.log(net_route_sets);
+
+  /*
   net_routes.forEach((d,i) => {
     r = routerMap.get(d.router_mac);
     s = sn_map.get(d.net);
 
-    //d.start = r.name;
-    d.target = s.name;
+    let t = s.name;
+    d.target = t;
+    if (seen_routes.has(t)) {
+      // TODO use algorithm joined_to to merge net_route tree...
+      let lst = seen_routes.get(t);
+      lst.push(`${r.name}-2`)
 
-    d.x1 = r.x;
-    d.y1 = r.y;
-    d.x2 = s.fit.x / grid.x_offset;
-    d.y2 = s.fit.y / grid.y_offset;
+    } else {
+      seen_routes.set(t)
+      d.target = `${s.name}-1`;
+      r.routes.push(d);
+    }
 
-    r.routes.push(d);
-  })
+  })*/
 
   /*net_routes = net_routes.concat(subnets.map(d => {
     if (d.link_local == "T") {
@@ -563,5 +631,5 @@ function buildMap(valueMap) {
 
   deleteForm();
 
-  layoutPCBPaths(subnets, routers, net_routes, grid);
+  layoutPCBPaths(subnets, routers, net_route_sets, grid);
 }

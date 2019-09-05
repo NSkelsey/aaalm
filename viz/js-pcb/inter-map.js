@@ -1,4 +1,4 @@
-function compileTemplate(subnets, routers, net_routes, grid) {
+function compileTemplate(subnets, routers, net_route_sets, grid) {
   // TODO handle case where routes are empty
   let w = grid.width, h = grid.height;
 
@@ -13,36 +13,37 @@ function compileTemplate(subnets, routers, net_routes, grid) {
       g = `${g} ${s.name}-1`;
     }
   });
+
+  let routeableNodes = [];
+
+  routers.forEach((d,i)=>{
+    let o = {
+      name: d.name,
+      x: xOff(d.x),
+      y: yOff(d.y)
+    };
+    routeableNodes.push(o);
+
+  });
+
   let netString = `
     (net LCNP
       (pins LCN-1 ${g})
     )`;
   let netNames = "LCNP";
 
-  let routeableNodes = [];
+  net_route_sets.forEach((set,idx)=> {
+    let paths = [];
+    set.forEach(d=>paths.push(d));
 
-  routers.forEach((d,i)=>{
-    let o = {
-      name: "R"+(i+1),
-      x: xOff(d.x),
-      y: yOff(d.y)
-    };
-    routeableNodes.push(o);
-
-    let paths = d.routes.map(p=>`${p.target}-1`).join(" ");
-
-    netNames += ` ${d.route_path_name}`;
+    netNames += ` NP${idx}`;
     let b = `
-    (net ${d.route_path_name}
-      (pins ${d.name}-2 ${paths})
+    (net NP${idx}
+      (pins ${paths.join(" ")})
     )`;
 
     netString += b;
   });
-
-  console.log(netNames);
-  console.log(netString);
-
 
   let subnetConnectors = [];
 

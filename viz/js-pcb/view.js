@@ -31,7 +31,7 @@ var js_pcb = js_pcb || {};
 
 		//create layers, last layer is the terminals layer
 		let layers = [];
-		let layer_colors = ["salmon", "lightgreen", "lightblue", "yellow", "cyan", "magenta"];
+		let layer_colors = ["#999", "#999", "#999", "#999", "cyan", "magenta"];
 		for (let layer = 0; layer < depth; ++layer)
 		{
 			layers.push(pcb.append("g")
