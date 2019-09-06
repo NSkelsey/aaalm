@@ -31,7 +31,7 @@ export {
     ## Defines the threshold for ICMP Time Exceeded messages for a src-dst
     ## pair.  This threshold only comes into play after a host is found to
     ## be sending low TTL packets.
-    const icmp_time_exceeded_threshold: double = 4 &redef;
+    const icmp_time_exceeded_threshold: double = 1 &redef;
 
     ## Interval at which to watch for the
     ## :zeek:id:`Traceroute::icmp_time_exceeded_threshold` variable to be
@@ -82,14 +82,14 @@ event zeek_init() &priority=5
                           local src = to_addr(parts[0]);
                           local dst = to_addr(parts[1]);
                           local proto = parts[2];
-                          print "Filterable", key, result;
+                          #print "Filterable", key, result;
                           local t = result["traceroute.time_exceeded"];
                           if (!t?$unique_vals) {
                             return;
                           }
 
                           local r = t$unique_vals;
-                          print "crossed threshold", key$str, r;
+                          #print "crossed threshold", key$str, r;
                           for (val in r) {
                               Log::write(LOG, [$ts=ts, $src=src, $dst=dst, $proto=proto, $emitter=val$str]);
                           }
@@ -103,14 +103,31 @@ event signature_match(state: signature_state, msg: string, data: string)
     if ( state$sig_id == /traceroute-detector.*/ )
     {
         local s = cat(state$conn$id$orig_h,"-",state$conn$id$resp_h,"-",get_port_transport_proto(state$conn$id$resp_p));
-        print "Sig detect match", s;
-        SumStats::observe("traceroute.low_ttl_packet", [$str=s], [$num=1]);
+
+        local p_hdr  = get_current_packet_header();
+        local p = get_current_packet();
+
+        if (!p_hdr?$ip) {
+            return;
+        }
+
+        print "Sig detect match", s, p_hdr$ip$ttl, p;
+        SumStats::observe("traceroute.low_ttl_packet", [$str=s], [$num=p_hdr$ip$ttl]);
     }
 }
 
 event icmp_time_exceeded(c: connection, icmp: icmp_conn, code: count, context: icmp_context)
 {
     local s = cat(context$id$orig_h,"-",context$id$resp_h,"-",get_port_transport_proto(context$id$resp_p));
-    print "icmp_time_exceeded", s, icmp$orig_h;
+
+    local p_hdr  = get_current_packet_header();
+    local p = get_current_packet();
+
+    if (!p_hdr?$ip) {
+        return;
+    }
+
+    print "icmp_time_exceeded", s, icmp$orig_h, p_hdr$ip$ttl, p;
+
     SumStats::observe("traceroute.time_exceeded", [$str=s], [$str=cat(c$id$orig_h)]);
 }
