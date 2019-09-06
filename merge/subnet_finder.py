@@ -111,13 +111,21 @@ def represent(clean,out=None):
   else:
     return represent(clean.values()[0])
 
+def find_minimum_netmask_size_bewteen(start,end):
+  val = start ^ end
+  netmask_size = 0
+  for (m,n) in zip((0xffff0000, 0xff00ff00, 0xf0f0f0f0, 0b110011001100110011001100110011, 0b1010101010101010101010101010101),(16,8,4,2,1)):
+    if val & m:
+      netmask_size += n
+  return 32 - netmask_size
+
 def compute_cluster_likelihood(clean):
   if type(clean) == list:
     size = len(clean)
     avg = sum(map(lambda x:x/size,clean))
     std = sum(map(lambda x:(x-avg)**2,clean))**0.5
     merge = 1
-    return (merge,avg,std,size)
+    return (merge,avg,std,size,clean)
   elif len(clean) > 1:
     avg_sum = []
     size_sum = []
@@ -125,35 +133,69 @@ def compute_cluster_likelihood(clean):
     out = OrderedDict()
     for (subnet,netmask_size), value in clean.items():
       ret = compute_cluster_likelihood(value)
-      (_,avg,std,size) = ret[:4]
+      (m,avg,std,size,x) = ret
       avg_sum.append(avg)
       std_sum.append(std)
       size_sum.append(size)
-      out["%s/%d" % (ip_number_to_string(subnet),netmask_size)] = ret
+      out[(subnet,netmask_size)] = (m, avg, std, size, x)
     size = sum(size_sum)
-    if size > 128:
+    if size > 32:
       avg = sum(map(lambda (a,s): a/size*s,zip(avg_sum,size_sum)))
       std = (sum(map(lambda (d,s): (d**2)*s,zip(std_sum,size_sum)))/size)**0.5
     else:
       ip_list = join_subnets([],clean)
-      (_,avg,std,size) = compute_cluster_likelihood(ip_list)
+      (_,avg,std,size,_) = compute_cluster_likelihood(ip_list)
 
-    min_val = avg - 2*std
-    max_val = avg + 2*std
-    common = 0
+    (lowerbound,netmask_size) = clean.keys()[0]
+    (upperbound,netmask_size) = clean.keys()[-1]
+    upperbound = upperbound | (0xffffffff >> netmask_size)
+    netmask_size = find_minimum_netmask_size_bewteen(lowerbound,upperbound)
+    
+    lowerbound = (lowerbound >> (32 - netmask_size)) << (32 - netmask_size)
+    upperbound = upperbound | (0xffffffff >> netmask_size)
+    
+    lowerbound = max(lowerbound, avg - std)
+    upperbound = min(upperbound, avg + std)
+    
+    overlapping = 0
+    for (subnet,netmask_size), a, s in zip(clean.keys(),avg_sum,std_sum):
+      end = subnet | (0xffffffff >> netmask_size)
+      start = max(lowerbound, a - s, subnet)
+      end = min(upperbound, a + s, end)
+      delta = end - start
+      if delta > 0:
+        overlapping += delta
 
-    for (a,d,s) in zip(avg_sum,std_sum,size_sum):
-      minv = max(a-2*d,min_val)
-      maxv = min(a+2*d,max_val)
-      if minv < maxv:
-        common += (maxv - minv) * s
-
-    merge = float(common/size)/(max_val-min_val)
-    v = [merge,avg,std,size,out]
-    return v
+    merge = float(overlapping) / (upperbound - lowerbound)
+    return [merge,avg,std,size,out]
   else:
     return compute_cluster_likelihood(clean.values()[0])
 
+# 0.682689492137086 is one one sigma confidence (68%)
+def join_cluster_probability_higher_than(clustered, threshold=0.682689492137086):
+  (merge,avg,std,size, subnets) = clustered
+  if type(subnets) == list:
+    return subnets
+  out = OrderedDict()
+  for key, value in subnets.items():
+    (my_subnet, my_netmask_size) = key
+    (merge,avg,std,size, subnets) = value
+    if merge > threshold:
+      if type(subnets) == list:
+        hosts = subnets
+      else:
+        hosts = []
+        remaining = list(subnets.items())
+        while remaining:
+          ((subnet,netmask_size),(m,a,d,s,subnets)) = remaining.pop(0)
+          if type(subnets) == list:
+            hosts.extend(subnets)
+          else:
+            remaining = list(subnets.items()) + remaining
+      out[key] = hosts
+    else:
+      out[key] = join_cluster_probability_higher_than(value, threshold)
+  return out
 
 def traverse(tree, path):
     sub_elem_dict = tree[-1]
@@ -223,7 +265,7 @@ if __name__ == "__main__":
   merged = merge_subnets(groups)
   clean = clean_merged(merged)
 
-  s = compute_cluster_likelihood(clean)
-  merged = pick_best_merges(s, clean, 8)
-
-  print json.dumps(represent(clean))
+  clustered = compute_cluster_likelihood(clean)
+  #merged = pick_best_merges(s, clean, 8)
+  joined = join_cluster_probability_higher_than(clustered)
+  print json.dumps(represent(joined),indent=2)
