@@ -1,15 +1,21 @@
-import sys
+import argparse
+import csv
 import json
+import sys
+
 from collections import OrderedDict
 
 def ip_string_to_number(ip):
   return reduce(lambda x,y: x|y, map(lambda (x,y): x << y, zip(map(int,ip.split('.')),reversed(range(0,32,8)))))
 
+
 def ip_number_to_string(ip):
   return '.'.join(str((ip & (0xff << x))>>x) for x in reversed(range(0,32,8)))
 
+
 def get_ip_nums_from_file(fp):
   return sorted(map(lambda x:ip_string_to_number(x.strip()),fp))
+
 
 def group_sorted_ips_by_subnet(ips):
   # assume ips are sorted numbers
@@ -31,6 +37,7 @@ def group_sorted_ips_by_subnet(ips):
     ip_list.append(ip)
     found_subnets[my_netmask] = ip_list
   return found_subnets
+
 
 def join_subnets(subnet1, subnet2):
   if type(subnet1) == type(subnet2):
@@ -61,6 +68,7 @@ def join_subnets(subnet1, subnet2):
       out |= set(join_subnets(v,[]))
     return sorted(list(out))
 
+
 def merge_subnets(found_subnets, netmask_size=2, stop_netmask_size=16):
   upper_level = OrderedDict()
   current_netmask = None
@@ -82,6 +90,7 @@ def merge_subnets(found_subnets, netmask_size=2, stop_netmask_size=16):
   else:
     return merge_subnets(upper_level, netmask_size+1, stop_netmask_size)
 
+
 # this keeps the smallest subnet
 def clean_merged(merged):
   if type(merged) == list:
@@ -95,6 +104,7 @@ def clean_merged(merged):
       (key, value) = ret.items()[0]
       out[key] = value
   return out
+
 
 def represent(clean,out=None):
   if type(clean) == list:
@@ -111,13 +121,15 @@ def represent(clean,out=None):
   else:
     return represent(clean.values()[0])
 
-def find_minimum_netmask_size_bewteen(start,end):
+
+def find_minimum_netmask_size_between(start,end):
   val = start ^ end
   netmask_size = 0
   for (m,n) in zip((0xffff0000, 0xff00ff00, 0xf0f0f0f0, 0b110011001100110011001100110011, 0b1010101010101010101010101010101),(16,8,4,2,1)):
     if val & m:
       netmask_size += n
   return 32 - netmask_size
+
 
 def compute_cluster_likelihood(clean):
   if type(clean) == list:
@@ -149,14 +161,14 @@ def compute_cluster_likelihood(clean):
     (lowerbound,netmask_size) = clean.keys()[0]
     (upperbound,netmask_size) = clean.keys()[-1]
     upperbound = upperbound | (0xffffffff >> netmask_size)
-    netmask_size = find_minimum_netmask_size_bewteen(lowerbound,upperbound)
-    
+    netmask_size = find_minimum_netmask_size_between(lowerbound,upperbound)
+
     lowerbound = (lowerbound >> (32 - netmask_size)) << (32 - netmask_size)
     upperbound = upperbound | (0xffffffff >> netmask_size)
-    
+
     lowerbound = max(lowerbound, avg - std)
     upperbound = min(upperbound, avg + std)
-    
+
     overlapping = 0
     for (subnet,netmask_size), a, s in zip(clean.keys(),avg_sum,std_sum):
       end = subnet | (0xffffffff >> netmask_size)
@@ -170,6 +182,7 @@ def compute_cluster_likelihood(clean):
     return [merge,avg,std,size,out]
   else:
     return compute_cluster_likelihood(clean.values()[0])
+
 
 # 0.682689492137086 is one one sigma confidence (68%)
 def join_cluster_probability_higher_than(clustered, threshold=0.682689492137086):
@@ -196,6 +209,7 @@ def join_cluster_probability_higher_than(clustered, threshold=0.682689492137086)
     else:
       out[key] = join_cluster_probability_higher_than(value, threshold)
   return out
+
 
 def traverse(tree, path):
     sub_elem_dict = tree[-1]
@@ -247,25 +261,87 @@ def pick_best_merges(stat_tree, clean_tree, num):
 
   return clean_tree
 
-import csv
-def read_tsv(fname, clean_tree):
-    # read devices.log
 
-    # for each line
-    #    look inside of clean for containing subnet
-    #    output line with \t possible_subnet updated
+def read_tsv(fstream):
+  ips = []
 
-    # Read subnet.log
-    # write new subnets
+  devreader = csv.reader(fstream, delimiter='\t')
+  length = sum(1 for _ in devreader)
+  fstream.seek(0)
+  to_skip = {0,1,2,3,4,5,6,7,length-1}
+  for row, i in zip(devreader, range(length)):
+    if i in to_skip:
+      continue
+    ip = ip_string_to_number(row[0].strip())
+    ips.append(ip)
+
+  fstream.close()
+
+  return ips
+
+def write_tsvs(ordered_subnet_dict):
+  all_leaf_subnets = {}
+
+  def unroll_tree(od_tree):
+    for k,v in od_tree.iteritems():
+      if type(v) == list:
+        all_leaf_subnets[k] = v
+      else:
+        unroll_tree(v)
+
+  unroll_tree(ordered_subnet_dict)
+
+  str_tree = represent(all_leaf_subnets)
+
+  with open("subnet.log", "w") as sf:
+    sf.write('''#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	subnet
+#open	2019-09-03-14-52-03
+#fields	net	num_devices	link_local
+#types	subnet	count	bool
+''')
+
+    tsvwriter = csv.writer(sf, delimiter='\t')
+    for snet in str_tree.keys():
+        tsvwriter.writerow([snet, len(str_tree[snet]), "F"])
+
+  with open("device.log.out", "w") as df:
+    df.write('''#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	device
+#open	2019-09-03-14-52-03
+#fields	dev_src_ip	first_seen	possible_subnet
+#types	addr	time	subnet
+''')
+
+    tsvwriter = csv.writer(df, delimiter='\t')
+
+    for snet, d_lst in str_tree.iteritems():
+      for dev in d_lst:
+        tsvwriter.writerow([dev, 1561700000, snet])
+
+  # TODO must read and then adjust net_routes.log
+  return
 
 
 if __name__ == "__main__":
-  ips = get_ip_nums_from_file(sys.stdin)
+  parser = argparse.ArgumentParser()
+  parser.add_argument('device_log', type=argparse.FileType('r'),
+                       default=sys.stdin)
+
+  args = parser.parse_args()
+  ips = read_tsv(args.device_log)
+
   groups = group_sorted_ips_by_subnet(ips)
   merged = merge_subnets(groups)
   clean = clean_merged(merged)
 
   clustered = compute_cluster_likelihood(clean)
-  #merged = pick_best_merges(s, clean, 8)
   joined = join_cluster_probability_higher_than(clustered)
-  print json.dumps(represent(joined),indent=2)
+
+  write_tsvs(joined)

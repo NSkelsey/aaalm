@@ -12,11 +12,11 @@ What a VPS on Amazon can see by running traceroute.
 
 ![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
 
-The same diagram in A4.
+The same diagram in A4
 
 ![printed a4 diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/white-boarded-c.jpg)
 
-My network at home.
+The network at my apartment
 
 ![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
@@ -28,7 +28,7 @@ During CTFs teams must attack and defend network services. This is what the netw
 
 Install [Zeek](https://docs.zeek.org/en/stable/quickstart/) and its package manager [zkg](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html).
 
-Use the `zkg` to download and install the pacakge.
+Use the `zkg` to download and install the package.
 
 ```zsh
 > zkg install aaalm
@@ -88,7 +88,12 @@ Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
 #### Placing devices in subnets
 By default the script uses a greedly algorithm to place addresses into `\24`.
 
-For more precise subnet grouping, the script in `merge/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings. The script will modify `*.log` the files to improve the quality of subnet groupings if the default behavoir is insufficient.
+For more precise subnet grouping, the script in `analysis/find_subnet.py` will compute a series of statistical tests to determine probable subnet groupings. The script will modify `*.log` the files to improve the quality of subnet groupings if the default behavoir is insufficient.
+
+```zsh
+> python2 subnet_finder.py in-device.log
+# Will output device.log and subnet.log
+```
 
 #### Identifying routers
 
