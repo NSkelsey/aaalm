@@ -176,15 +176,6 @@ function ip2int(ip) {
 }
 
 
-function makePath(devices) {
-  let p = [{x:0, y:0}, {x:1, y:0}];
-  for (let i = 0; i < devices.length - 1; i++) {
-      p.push(devices[i], devices[i+1])
-  }
-  return p;
-}
-
-
 function orientToDegrees(j) {
   return j*-90;
 }
@@ -349,7 +340,6 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
 function buildMap(valueMap) {
   promises = [];
 
-  let traced_routes = valueMap.get("tracedroute");
 
   let subnets = valueMap.get("subnet");
 
@@ -390,17 +380,22 @@ function buildMap(valueMap) {
 
 
   let line = d3.line()
-    .curve(d3.curveStep)
-    .x(d=>d[0]*grid.x_offset)
-    .y(d=>d[1]*grid.y_offset);
+    //.curve(d3.curveStep)
+    .x(d=>d[0])
+    .y(d=>d[1]);
 
     //const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
     const colors = d3.schemeCategory10;
 
+  deviceMap = new Map();
+
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
 
-    subnet.devices.forEach(d=>d.subnet=subnet);
+    subnet.devices.forEach(d=> {
+        d.subnet = subnet;
+        deviceMap.set(d.dev_src_ip, d);
+    });
 
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
@@ -415,8 +410,6 @@ function buildMap(valueMap) {
     subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
 
     subnet.name = "S"+(j+1)
-
-    subnet.path = line(makePath(subnet.devices));
   });
 
   let packer = new Packer(grid.width, grid.height);
@@ -483,51 +476,73 @@ function buildMap(valueMap) {
   let net_routes = valueMap.get("net_route");
 
   let net_route_sets = merge_routes(net_routes, sn_map, routerMap);
-  console.log(net_route_sets);
 
-  /*
-  net_routes.forEach((d,i) => {
-    r = routerMap.get(d.router_mac);
-    s = sn_map.get(d.net);
+  let traced_routes = valueMap.get("tracedroute");
 
-    let t = s.name;
-    d.target = t;
-    if (seen_routes.has(t)) {
-      // TODO use algorithm joined_to to merge net_route tree...
-      let lst = seen_routes.get(t);
-      lst.push(`${r.name}-2`)
+  function make_path_coords(dev_src_ip) {
+    let dev = deviceMap.get(dev_src_ip);
 
+    let x_pos = dev.x*grid.x_offset + dev.subnet.fit.x;
+    let y_pos = dev.y*grid.y_offset + dev.subnet.fit.y;
+
+    return [x_pos, y_pos];
+  }
+
+  let tr_route_map = new Map();
+
+  traced_routes.forEach(d => {
+    let s = `${d.originator}-${d.dst}-${d.proto}`;
+
+
+    let o = {
+        name: s,
+        originator: d.originator,
+        dst: d.dst,
+        stops: [],
+        positions: [],
+    };
+
+    for (let y = 0; y < 10; y++) {
+        o.stops.push(new Set());
+        o.positions.push([]);
+    }
+
+    if (tr_route_map.has(s)) {
+        o = tr_route_map.get(s);
     } else {
-      seen_routes.set(t)
-      d.target = `${s.name}-1`;
-      r.routes.push(d);
+        tr_route_map.set(s, o);
     }
+    o.stops[d.ttl].add(d.emitter);
 
-  })*/
+    let coords = make_path_coords(d.emitter);
+    o.positions[d.ttl].push(coords);
+  });
 
-  /*net_routes = net_routes.concat(subnets.map(d => {
-    if (d.link_local == "T") {
-        return {
-          x1: 0,
-          y1: 0,
-          x2: d.fit.x / grid.x_offset,
-          y2: d.fit.y / grid.y_offset
-        };
+  console.log(tr_route_map);
+
+  for (let v of tr_route_map.values()) {
+    v.simple_path = v.positions.filter(d=>d.length > 0);
+    v.simple_path = v.simple_path.map(d=>d[0]);
+
+    // push the originating host to the front of the line
+    v.simple_path.unshift(make_path_coords(v.originator));
+
+    if (v[v.simple_path.length-1] != v.dst && deviceMap.has(v.dst)) {
+        v.simple_path.push(make_path_coords(v.dst));
     }
-    return -1;
-  }).filter(d=>d != -1 ));*/
+  };
 
-    /*
-  const connections = svg.selectAll("path.tracepath")
-    .data(net_routes).join("path")
-    .attr("stroke", "#777777")
+  let tr_list = Array.from(tr_route_map.values());
+
+  const connections = svg.selectAll("path.traceroutepath")
+  .data(tr_list).join("path")
+    .attr("stroke", (d,i)=>colors[i])
     .attr("stroke-linejoin", "round")
     .attr("stroke-width", "2px")
     .attr("stroke-opacity", 0.7)
-    .attr("class", "tracepath")
+    .attr("class", "traceroutepath")
     .attr("fill", "none")
-    .attr("d", d=>line([[d.x1, d.y1],[d.x2,d.y2]]));
-    */
+    .attr("d", d=>line(d.simple_path));
 
   let router = svg.selectAll("g.router")
     .data(routers).join("g")
