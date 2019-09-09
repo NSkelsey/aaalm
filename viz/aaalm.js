@@ -85,7 +85,7 @@ function dropZeekTSVHeaders(raw_text) {
 
 
 function processFiles(evt) {
-    if (files.length != 4) {
+    if (files.length != 5) {
         errorMessage("Not enough or no files selected");
         return;
     }
@@ -122,7 +122,7 @@ function processFiles(evt) {
         promises.push(p);
     }
     Promise.all(promises).then(values => {
-        const requiredFiles = new Set(["device", "subnet", "net_route", "router"]);
+        const requiredFiles = new Set(["device", "subnet", "net_route", "router", "tracedroute"]);
         let B = new Set();
         let map = new Map();
 
@@ -135,7 +135,7 @@ function processFiles(evt) {
         let C = symmetricDifference(requiredFiles, B);
 
         if (C.size != 0) {
-            let e = 'There are missing and extra files';
+            let e = `There are incorrectly named and/or extra files: ${C}`;
             errorMessage(e);
             throw e;
         }
@@ -349,6 +349,8 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
 function buildMap(valueMap) {
   promises = [];
 
+  let traced_routes = valueMap.get("tracedroute");
+
   let subnets = valueMap.get("subnet");
 
   let sn_map = new Map();
@@ -397,6 +399,8 @@ function buildMap(valueMap) {
 
   subnets.forEach(function(subnet, j) {
     let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
+
+    subnet.devices.forEach(d=>d.subnet=subnet);
 
     subnet.empty_grid = [];
     for (let i = 0; i < ctr; i ++) {
@@ -593,7 +597,8 @@ function buildMap(valueMap) {
     .attr("fill", "#555")
     .attr("r", grid.r);
 
-  node.append("text")
+  node.filter(d=> d.subnet.net !="0.0.0.0/0")
+  .append("text")
     .attr("x", 5)
     .attr("y", 5)
     .attr("text-anchor", "start")
@@ -601,6 +606,14 @@ function buildMap(valueMap) {
     .text(d => d.val)
   .clone(true).lower()
     .attr("stroke", "white");
+
+  node.filter(d=> d.subnet.net == "0.0.0.0/0")
+  .append("text")
+    .attr("x", 5)
+    .attr("y", 5)
+    .attr("text-anchor", "start")
+    .attr("transform", "rotate(-15)")
+    .text(d => d.dev_src_ip)
 
   const center_dot = svg.append("g")
     .attr("id", "tap")

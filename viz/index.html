@@ -148,7 +148,7 @@ div.labels svg {
                id="net-title">
 
         <br>
-        <label for="device-file">Select the <b>device.log</b>, <b>net_route.log</b>, <b>router.log</b> and <b>subnet.log</b> files:</label>
+        <label for="device-file">Select the <b>tracedroute.log</b>, <b>device.log</b>, <b>net_route.log</b>, <b>router.log</b> and <b>subnet.log</b> files:</label>
 
         <input type="file"
                id="device-file" name="processor"
@@ -158,10 +158,7 @@ div.labels svg {
         <p>Please note that this form does not post data anywhere.
            It only processes local files.
         </p>
-        <ul id="file-list">
-
-        </ul>
-
+        <ul id="file-list"></ul>
 
         <button onclick="processFiles(event)" >Generate</button>
         <p id="error-msg"></p>
