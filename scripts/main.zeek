@@ -4,6 +4,7 @@
 @load policy/protocols/conn/vlan-logging
 
 @load ether_ipv4
+@load tracedroute
 
 module EtherIPv4;
 
@@ -100,4 +101,5 @@ event zeek_done()
     log_routers(mac_to_router);
     log_nets(all_subnets_table);
     log_devices(all_src_ips);
+    Tracedroute::log_tracedroutes(Tracedroute::icmp_traceroute_tbl);
 }
