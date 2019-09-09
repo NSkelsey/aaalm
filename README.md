@@ -12,11 +12,11 @@ What a VPS on Amazon can see by running traceroute.
 
 ![aws vps diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/aws-vps.png)
 
-The same diagram in A4.
+The same diagram in A4
 
 ![printed a4 diagram](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/white-boarded-c.jpg)
 
-My network at home.
+The network at my apartment
 
 ![My home network](https://raw.githubusercontent.com/nskelsey/aaalm/master/static/home.png)
 
@@ -28,7 +28,7 @@ During CTFs teams must attack and defend network services. This is what the netw
 
 Install [Zeek](https://docs.zeek.org/en/stable/quickstart/) and its package manager [zkg](https://docs.zeek.org/projects/package-manager/en/stable/quickstart.html).
 
-Use the `zkg` to download and install the pacakge.
+Use the `zkg` to download and install the package.
 
 ```zsh
 > zkg install aaalm
