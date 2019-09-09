@@ -1,6 +1,9 @@
 const chart_sizes = [{w: 1112, h: 645, x_c:940}, {w: 1400, h: 1112, x_c:1407}, {w: 4451, h: 3148, x_c:3443}];
 const paper_sizes = [{w: "29.7cm", h: "21cm"}, {w: "42cm", h: "29.7cm"}, {w: "118.8cm", h: "84cm"}];
 
+const colors = d3.schemeCategory10;
+//const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
+
 const grid = {
     width: -1,
     height: -1,
@@ -195,7 +198,24 @@ function intersection(setA, setB) {
   return _intersection;
 }
 
-function merge_routes(net_routes, sn_map, routerMap) {
+function merge_routes(net_routes, sn_map, routers) {
+  let routerMap = new Map();
+  routers.forEach((d, i) => {
+      d.name = "R"+(i+1);
+
+      d.route_path_name = `RP${i+0}`;
+      d.routes = [];
+
+      routerMap.set(d.mac, d);
+      if (i < 2) {
+        d.x = 4;
+        d.y = i;
+      } else {
+        d.x = 6 - i;
+        d.y = 2;
+      }
+  });
+
   let link_local = new Set(["LCN-1"]);
   routerMap.forEach(v=>link_local.add(`${v.name}-1`));
 
@@ -250,6 +270,65 @@ function merge_routes(net_routes, sn_map, routerMap) {
   return outputSets;
 }
 
+function processTracedroutes(traced_routes, deviceMap, grid) {
+
+  function make_path_coords(dev_src_ip) {
+    let dev = deviceMap.get(dev_src_ip);
+
+    let x_pos = dev.x*grid.x_offset + dev.subnet.fit.x;
+    let y_pos = dev.y*grid.y_offset + dev.subnet.fit.y;
+
+    return [x_pos, y_pos];
+  }
+
+  let tr_route_map = new Map();
+
+  traced_routes.forEach(d => {
+    let s = `${d.originator}-${d.dst}-${d.proto}`;
+
+    let o = {
+        name: s,
+        originator: d.originator,
+        dst: d.dst,
+        stops: [],
+        positions: [],
+    };
+
+    for (let y = 0; y < 10; y++) {
+        o.stops.push(new Set());
+        o.positions.push([]);
+    }
+
+    if (tr_route_map.has(s)) {
+        o = tr_route_map.get(s);
+    } else {
+        tr_route_map.set(s, o);
+    }
+    o.stops[d.ttl].add(d.emitter);
+
+    let coords = make_path_coords(d.emitter);
+    o.positions[d.ttl].push(coords);
+  });
+
+
+  for (let v of tr_route_map.values()) {
+    v.simple_path = v.positions.filter(d=>d.length > 0);
+    v.simple_path = v.simple_path.map(d=>d[0]);
+
+    // push the originating host to the front of the line
+    v.simple_path.unshift(make_path_coords(v.originator));
+
+    if (v[v.simple_path.length-1] != v.dst && deviceMap.has(v.dst)) {
+        v.simple_path.push(make_path_coords(v.dst));
+    }
+  };
+
+  let tr_list = Array.from(tr_route_map.values());
+  return tr_list;
+}
+
+
+
 
 function processDevices(prefix, devices, j) {
   // Compute x and y position for each device inside of its subnet
@@ -299,130 +378,11 @@ function deleteForm() {
 }
 
 
-function layoutPCBPaths(subnets, routers, net_routes, grid) {
-    let pcb_args = {
-        border_gap: 55, // TODO
-        timeout: 1000, // Unused by lib
-        vias_cost: 0,
-        samples: 8, // max 32
-        grid_resolution: 1, // max 4
-        distance_metric: 0, // max 4
-        quantization: 1, // max 64
-        flood_range: 2, // max 5
-        x_range: 1, // max 5
-        y_range: 1 // max 5
-    };
-    let a = pcb_args;
-
-    //run pcb solver web worker thread, register output listner
-    if (worker !== null) worker.terminate();
-    worker = new Worker('js-pcb/worker.js');
-    worker.addEventListener('message', function(event)
-    {
-        if (event.data.length)
-        {
-            //view the pcb output
-            console.log("Calling view_pcb", event.data);
-            js_pcb.view_pcb(event.data, 1, grid.x_correct);
-        }
-    }, false);
-
-    //post to solver thread
-    let compiled_template = compileTemplate(subnets, routers, net_routes, grid);
-    worker.postMessage([js_pcb.dsn2pcb(compiled_template, a.border_gap),
-                        a.timeout, 1, a.samples, a.vias_cost,
-                        a.grid_resolution, a.quantization, a.distance_metric,
-                        a.flood_range, a.x_range, a.y_range]);
-
-}
-
-
-function buildMap(valueMap) {
-  promises = [];
-
-
-  let subnets = valueMap.get("subnet");
-
-  let sn_map = new Map();
-  subnets.forEach((sn, i)=> {
-    sn.devices = [];
-    sn.ip = ip2int(sn.net.split('/')[0]);
-    sn_map.set(sn.net, sn);
-    sn.name = "S"+(i+1)
-  });
-
-  subnets.sort((a,b) => a.ip - b.ip);
-
-  let devices = valueMap.get("device");
-
-  let has_pub_internet = sn_map.has("0.0.0.0/0");
-
-  devices.forEach(d=> {
-
-    let t = sn_map.get(d.possible_subnet);
-    if (t) {
-      t.devices.push(d);
-    } else {
-      if (has_pub_internet) {
-        t = sn_map.get("0.0.0.0/0");
-      } else {
-        console.log(`No subnet for ${d.dev_src_ip} found`);
-      }
-    }
-  });
-
-  let c_vlans = new Set(subnets.map(d=>d.vlan));
-
-  let interface_box = {
-    w: 6 * grid.x_offset,
-    h: 3 * grid.x_offset,
-  };
-
+function drawSVG(subnets, routers, tr_list) {
 
   let line = d3.line()
-    //.curve(d3.curveStep)
     .x(d=>d[0])
     .y(d=>d[1]);
-
-    //const colors = ["#F1AFB6", "#F4BEA1", "#F9E1A8", "#ADE3C8", "#BAE5E3", "#6390B9", "#C24F8E", "#E3B4C9"];
-    const colors = d3.schemeCategory10;
-
-  deviceMap = new Map();
-
-  subnets.forEach(function(subnet, j) {
-    let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
-
-    subnet.devices.forEach(d=> {
-        d.subnet = subnet;
-        deviceMap.set(d.dev_src_ip, d);
-    });
-
-    subnet.empty_grid = [];
-    for (let i = 0; i < ctr; i ++) {
-      let o = {color: colors[j%9]};
-      o.x = i % 8;
-      o.y = Math.floor(i / 8);
-      subnet.empty_grid.push(o);
-    }
-    subnet.color = colors[j%9];
-
-    subnet.w = (8+1) * grid.x_offset;
-    subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
-
-    subnet.name = "S"+(j+1)
-  });
-
-  let packer = new Packer(grid.width, grid.height);
-  subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
-
-  let packable_elems = [interface_box].concat(subnets);
-  let success = packer.fit(packable_elems);
-
-  if (!success) {
-    errorMessage(`Could not fit ${subnets.length} subnets and ${devices.length}
-        devices on the page`);
-    return;
-  }
 
   const svg = d3.select("#map")
     .style("width", grid.width)
@@ -430,7 +390,6 @@ function buildMap(valueMap) {
   .append("g")
     .attr("class", "margin")
     .attr("transform", `translate(${grid.x_pad}, ${grid.y_pad})`)
-
 
   const subnet_group = svg.selectAll("g.subnet-group")
     .data(subnets)
@@ -453,86 +412,6 @@ function buildMap(valueMap) {
     .attr("stroke-width", 1.0)
     .attr("fill", "none")
 
-  let routers = valueMap.get("router");
-
-  let routerMap = new Map();
-  routers.forEach((d, i) => {
-      d.name = "R"+(i+1);
-
-      d.route_path_name = `RP${i+0}`;
-      d.routes = [];
-
-      routerMap.set(d.mac, d);
-      if (i < 2) {
-        d.x = 4;
-        d.y = i;
-      } else {
-        d.x = 6 - i;
-        d.y = 2;
-      }
-  });
-
-
-  let net_routes = valueMap.get("net_route");
-
-  let net_route_sets = merge_routes(net_routes, sn_map, routerMap);
-
-  let traced_routes = valueMap.get("tracedroute");
-
-  function make_path_coords(dev_src_ip) {
-    let dev = deviceMap.get(dev_src_ip);
-
-    let x_pos = dev.x*grid.x_offset + dev.subnet.fit.x;
-    let y_pos = dev.y*grid.y_offset + dev.subnet.fit.y;
-
-    return [x_pos, y_pos];
-  }
-
-  let tr_route_map = new Map();
-
-  traced_routes.forEach(d => {
-    let s = `${d.originator}-${d.dst}-${d.proto}`;
-
-
-    let o = {
-        name: s,
-        originator: d.originator,
-        dst: d.dst,
-        stops: [],
-        positions: [],
-    };
-
-    for (let y = 0; y < 10; y++) {
-        o.stops.push(new Set());
-        o.positions.push([]);
-    }
-
-    if (tr_route_map.has(s)) {
-        o = tr_route_map.get(s);
-    } else {
-        tr_route_map.set(s, o);
-    }
-    o.stops[d.ttl].add(d.emitter);
-
-    let coords = make_path_coords(d.emitter);
-    o.positions[d.ttl].push(coords);
-  });
-
-  console.log(tr_route_map);
-
-  for (let v of tr_route_map.values()) {
-    v.simple_path = v.positions.filter(d=>d.length > 0);
-    v.simple_path = v.simple_path.map(d=>d[0]);
-
-    // push the originating host to the front of the line
-    v.simple_path.unshift(make_path_coords(v.originator));
-
-    if (v[v.simple_path.length-1] != v.dst && deviceMap.has(v.dst)) {
-        v.simple_path.push(make_path_coords(v.dst));
-    }
-  };
-
-  let tr_list = Array.from(tr_route_map.values());
 
   const connections = svg.selectAll("path.traceroutepath")
   .data(tr_list).join("path")
@@ -656,6 +535,135 @@ function buildMap(valueMap) {
     .attr("x", -40)
     .attr("y", -14)
     .text("Link Layer")
+}
+
+function layoutPCBPaths(subnets, routers, net_routes, grid) {
+    let pcb_args = {
+        border_gap: 55, // TODO
+        timeout: 1000, // Unused by lib
+        vias_cost: 0,
+        samples: 8, // max 32
+        grid_resolution: 1, // max 4
+        distance_metric: 0, // max 4
+        quantization: 1, // max 64
+        flood_range: 2, // max 5
+        x_range: 1, // max 5
+        y_range: 1 // max 5
+    };
+    let a = pcb_args;
+
+    //run pcb solver web worker thread, register output listner
+    if (worker !== null) worker.terminate();
+    worker = new Worker('js-pcb/worker.js');
+    worker.addEventListener('message', function(event)
+    {
+        if (event.data.length)
+        {
+            //view the pcb output
+            console.log("Calling view_pcb", event.data);
+            js_pcb.view_pcb(event.data, 1, grid.x_correct);
+        }
+    }, false);
+
+    //post to solver thread
+    let compiled_template = compileTemplate(subnets, routers, net_routes, grid);
+    worker.postMessage([js_pcb.dsn2pcb(compiled_template, a.border_gap),
+                        a.timeout, 1, a.samples, a.vias_cost,
+                        a.grid_resolution, a.quantization, a.distance_metric,
+                        a.flood_range, a.x_range, a.y_range]);
+
+}
+
+
+function buildMap(valueMap) {
+  promises = [];
+
+
+  let subnets = valueMap.get("subnet");
+
+  let sn_map = new Map();
+  subnets.forEach((sn, i)=> {
+    sn.devices = [];
+    sn.ip = ip2int(sn.net.split('/')[0]);
+    sn_map.set(sn.net, sn);
+    sn.name = "S"+(i+1)
+  });
+
+  subnets.sort((a,b) => a.ip - b.ip);
+
+  let devices = valueMap.get("device");
+
+  let has_pub_internet = sn_map.has("0.0.0.0/0");
+
+  devices.forEach(d=> {
+
+    let t = sn_map.get(d.possible_subnet);
+    if (t) {
+      t.devices.push(d);
+    } else {
+      if (has_pub_internet) {
+        t = sn_map.get("0.0.0.0/0");
+      } else {
+        console.log(`No subnet for ${d.dev_src_ip} found`);
+      }
+    }
+  });
+
+  let c_vlans = new Set(subnets.map(d=>d.vlan));
+
+  let interface_box = {
+    w: 6 * grid.x_offset,
+    h: 3 * grid.x_offset,
+  };
+
+
+  deviceMap = new Map();
+
+  subnets.forEach(function(subnet, j) {
+    let ctr = processDevices(subnet.net.split("/")[0], subnet.devices, j);
+
+    subnet.devices.forEach(d=> {
+        d.subnet = subnet;
+        deviceMap.set(d.dev_src_ip, d);
+    });
+
+    subnet.empty_grid = [];
+    for (let i = 0; i < ctr; i ++) {
+      let o = {color: colors[j%9]};
+      o.x = i % 8;
+      o.y = Math.floor(i / 8);
+      subnet.empty_grid.push(o);
+    }
+    subnet.color = colors[j%9];
+
+    subnet.w = (8+1) * grid.x_offset;
+    subnet.h = (Math.ceil(subnet.empty_grid.length / 8) + 1) * grid.y_offset;
+
+    subnet.name = "S"+(j+1)
+  });
+
+  let packer = new Packer(grid.width, grid.height);
+  subnets.sort(function(a,b) { return (b.h*b.w < a.h*a.w); });
+
+  let packable_elems = [interface_box].concat(subnets);
+  let success = packer.fit(packable_elems);
+
+  if (!success) {
+    errorMessage(`Could not fit ${subnets.length} subnets and ${devices.length}
+        devices on the page`);
+    return;
+  }
+
+  let net_routes = valueMap.get("net_route");
+
+
+  let routers = valueMap.get("router");
+
+  let net_route_sets = merge_routes(net_routes, sn_map, routers);
+
+  let traced_routes = valueMap.get("tracedroute");
+
+  let tr_list = processTracedroutes(traced_routes, deviceMap, grid);
 
   let metadata = {
     title: title,
@@ -669,6 +677,8 @@ function buildMap(valueMap) {
   setupHTML(metadata);
 
   deleteForm();
+
+  drawSVG(subnets, routers, tr_list);
 
   layoutPCBPaths(subnets, routers, net_route_sets, grid);
 }
