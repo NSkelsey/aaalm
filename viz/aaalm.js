@@ -378,12 +378,7 @@ function deleteForm() {
 }
 
 
-function drawSVG(subnets, routers, tr_list) {
-
-  let line = d3.line()
-    .x(d=>d[0])
-    .y(d=>d[1]);
-
+function drawSVG(subnets, routers, tr_list, grid) {
   const svg = d3.select("#map")
     .style("width", grid.width)
     .style("height", grid.height)
@@ -412,6 +407,9 @@ function drawSVG(subnets, routers, tr_list) {
     .attr("stroke-width", 1.0)
     .attr("fill", "none")
 
+  let line = d3.line()
+    .x(d=>d[0])
+    .y(d=>d[1]);
 
   const connections = svg.selectAll("path.traceroutepath")
   .data(tr_list).join("path")
@@ -578,7 +576,7 @@ function layoutPCBPaths(subnets, routers, net_routes, grid) {
 function buildMap(valueMap) {
   promises = [];
 
-
+  // TODO process subnets in subroutine
   let subnets = valueMap.get("subnet");
 
   let sn_map = new Map();
@@ -656,7 +654,6 @@ function buildMap(valueMap) {
 
   let net_routes = valueMap.get("net_route");
 
-
   let routers = valueMap.get("router");
 
   let net_route_sets = merge_routes(net_routes, sn_map, routers);
@@ -678,7 +675,7 @@ function buildMap(valueMap) {
 
   deleteForm();
 
-  drawSVG(subnets, routers, tr_list);
+  drawSVG(subnets, routers, tr_list, grid);
 
   layoutPCBPaths(subnets, routers, net_route_sets, grid);
 }

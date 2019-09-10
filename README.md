@@ -77,11 +77,14 @@ Execution against __hundreds of megabytes__ of traffic produces meaningful outpu
 
 If you are monitoring traffic in tens or hundreds of gigabits per second but do not already know your network's layout, you may have __other problems__.
 
-#### TODO Visualizing routing paths
+#### Visualizing routing paths
 
 If your packet capture file contains traffic from programs like traceroute, it's possible to visualize these paths.
 
-Add `@load tracedroute.zeek` to `main.zeek` to generate `route.log`.
+Note that only traceroutes performed with low TTL UDP packets which solicit ICMP responses from servers are tracked.
+Further there is some bug with the signature `detect-low-ttls.sig` that breaks detection even with some UDP traffic.
+
+In any case the reconstructed route will be logged to the file `tracedroute.log`.
 
 ### Techniques Used
 
