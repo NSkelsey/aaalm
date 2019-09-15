@@ -98,6 +98,8 @@ For more precise subnet grouping, the script in `analysis/find_subnet.py` will c
 # Will output device.log and subnet.log
 ```
 
+Afterwards the `net_routes.log` must also be updated by hand to reflect these new changes.
+
 #### Identifying routers
 
 Router identification works by tracking unique MACs inside of the `l2_header` and storing the set of `ip_src` addresses, then simply checking if these MACs are originating traffic with multiple source IP addresses.
